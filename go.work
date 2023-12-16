@@ -1,0 +1,8 @@
+go 1.21.3
+
+use (
+	./go/bit-wrapper
+	./go/bootstrap
+	./go/util
+	./go/tester
+)

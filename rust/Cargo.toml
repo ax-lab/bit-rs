@@ -1,0 +1,12 @@
+[workspace]
+
+default-members = [ "bit" ]
+
+resolver = "2"
+
+members = [
+	"bit",
+]
+
+[profile.release]
+debug = true
