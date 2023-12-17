@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Array {
-	kind: Kind,
+	kind: KindId,
 	list: Arc<[Data]>,
 }
 
@@ -30,13 +30,13 @@ impl Array {
 		}
 
 		Self {
-			kind: Kind::array_of(kind),
+			kind: Kind::array_of(kind).id(),
 			list: list.into(),
 		}
 	}
 
 	pub fn kind(&self) -> Kind {
-		self.kind
+		self.kind.into()
 	}
 
 	pub fn len(&self) -> usize {

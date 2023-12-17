@@ -1,5 +1,44 @@
 use super::*;
 
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct KindId {
+	ptr: *const Kind,
+}
+
+impl KindId {
+	pub fn as_kind(&self) -> &'static Kind {
+		unsafe { &*self.ptr }
+	}
+}
+
+impl Debug for KindId {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let kind = self.as_kind();
+		write!(f, "<{kind:?} #{:?}>", self.ptr)
+	}
+}
+
+impl Ord for KindId {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.as_kind().cmp(other.as_kind())
+	}
+}
+
+impl PartialOrd for KindId {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl From<KindId> for Kind {
+	fn from(value: KindId) -> Self {
+		value.as_kind().clone()
+	}
+}
+
+unsafe impl Send for KindId {}
+unsafe impl Sync for KindId {}
+
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum Kind {
 	None,
@@ -25,6 +64,10 @@ impl<T: Into<Value>> From<T> for Data {
 }
 
 impl Kind {
+	pub fn id(&self) -> KindId {
+		KindId { ptr: self.as_ref() }
+	}
+
 	pub fn is_none(&self) -> bool {
 		self == &Kind::None
 	}
