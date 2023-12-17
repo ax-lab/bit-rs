@@ -1,1 +1,8 @@
-Bit 0.1.0
+
+>>> Source(`sample.bit` with 21 bytes) <<<
+
+line 1
+line 2
+line 3
+
+

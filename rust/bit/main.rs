@@ -8,6 +8,12 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-	println!("Bit {}", version());
+	let sources = SourceMap::new(".")?;
+	for path in std::env::args().skip(1) {
+		let src = sources.load_file(path)?;
+		println!("\n>>> {src:?} <<<\n");
+		println!("{}\n", src.text());
+	}
+
 	Ok(())
 }

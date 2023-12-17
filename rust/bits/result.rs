@@ -63,16 +63,22 @@ mod macros {
 	#[macro_export]
 	macro_rules! err {
 		($msg:literal $($args:tt)*) => {{
-			const FILE: &'static str = file!();
-			const LINE: u32 = line!();
-			let msg = format!($msg $($args)*);
-			$crate::result::Error::new(msg).at_file(FILE, LINE).raise()
+			err!(= $msg $($args)*).raise()
 		}};
 
 		($expr:expr) => {{
+			err!(= $expr).raise()
+		}};
+
+		(= $msg:literal $($args:tt)*) => {{
+			let msg = format!($msg $($args)*);
+			err!(= msg)
+		}};
+
+		(= $expr:expr) => {{
 			const FILE: &'static str = file!();
 			const LINE: u32 = line!();
-			$crate::result::Error::new($expr).at_file(FILE, LINE).raise()
+			$crate::result::Error::new($expr).at_file(FILE, LINE)
 		}};
 	}
 
