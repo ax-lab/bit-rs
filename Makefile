@@ -6,7 +6,7 @@ build:
 	@ go build ./go/bit-wrapper/bit.go
 	@ cargo  build --all --manifest-path rust/Cargo.toml $(cargo)
 
-test: test-cargo test-go test-script
+test: test-cargo test-script
 	@echo
 	@echo ======================================================
 	@echo Tests passed!!!

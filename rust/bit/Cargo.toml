@@ -12,3 +12,5 @@ name = "bit"
 path = "main.rs"
 
 [dependencies]
+
+bits = { path = "../bits" }

@@ -1,0 +1,11 @@
+[package]
+
+name = "bits"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "bits.rs"
+
+[dependencies]
