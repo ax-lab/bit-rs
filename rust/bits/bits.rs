@@ -7,8 +7,10 @@ use std::{
 };
 
 pub mod core;
+pub mod result;
 
 pub use core::*;
+pub use result::*;
 
 pub fn version() -> &'static str {
 	"0.1.0"

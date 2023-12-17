@@ -1,3 +1,13 @@
+use bits::*;
+
 fn main() {
-    println!("Bit {}", bits::version())
+	if let Err(err) = run() {
+		eprintln!("\nError: {}\n", err.detailed());
+		std::process::exit(1);
+	}
+}
+
+fn run() -> Result<()> {
+	println!("Bit {}", version());
+	Ok(())
 }
