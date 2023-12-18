@@ -9,10 +9,12 @@ use std::{
 
 pub mod core;
 pub mod input;
+pub mod ops;
 pub mod result;
 
 pub use core::*;
 pub use input::*;
+pub use ops::*;
 pub use result::*;
 
 pub fn version() -> &'static str {
