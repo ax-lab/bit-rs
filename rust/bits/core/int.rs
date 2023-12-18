@@ -19,6 +19,7 @@ pub enum Int {
 	U16(u16),
 	U32(u32),
 	U64(u64),
+	Lit(i128),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
@@ -31,6 +32,7 @@ pub enum IntKind {
 	U16,
 	U32,
 	U64,
+	Lit,
 }
 
 impl IntKind {
@@ -38,6 +40,7 @@ impl IntKind {
 		match self {
 			IntKind::I8 | IntKind::I16 | IntKind::I32 | IntKind::I64 => true,
 			IntKind::U8 | IntKind::U16 | IntKind::U32 | IntKind::U64 => false,
+			IntKind::Lit => true,
 		}
 	}
 
@@ -47,6 +50,7 @@ impl IntKind {
 			IntKind::I16 | IntKind::U16 => 16,
 			IntKind::I32 | IntKind::U32 => 32,
 			IntKind::I64 | IntKind::U64 => 64,
+			IntKind::Lit => 0,
 		}
 	}
 
@@ -70,6 +74,7 @@ impl Int {
 			Int::U16(_) => IntKind::U16,
 			Int::U32(_) => IntKind::U32,
 			Int::U64(_) => IntKind::U64,
+			Int::Lit(_) => IntKind::Lit,
 		}
 	}
 
@@ -88,6 +93,12 @@ impl Int {
 			Int::U32(v) => v as i64,
 			Int::U64(v) => {
 				if v > i64::MAX as u64 {
+					return None;
+				}
+				v as i64
+			}
+			Int::Lit(v) => {
+				if v > i64::MAX as i128 {
 					return None;
 				}
 				v as i64
@@ -126,43 +137,53 @@ impl Int {
 				}
 				v as u64
 			}
+			Int::Lit(v) => {
+				if v < 0 || v > u64::MAX as i128 {
+					return None;
+				}
+				v as u64
+			}
 		};
 		Some(val)
 	}
 
-	pub fn sign_abs(&self) -> (i32, u64) {
+	pub fn sign_abs(&self) -> (i32, u128) {
 		match *self {
 			Int::I8(v) => {
 				let s = v.signum() as i32;
-				(s, v.abs() as u64)
+				(s, v.abs() as u128)
 			}
 			Int::I16(v) => {
 				let s = v.signum() as i32;
-				(s, v.abs() as u64)
+				(s, v.abs() as u128)
 			}
 			Int::I32(v) => {
 				let s = v.signum() as i32;
-				(s, v.abs() as u64)
+				(s, v.abs() as u128)
 			}
 			Int::I64(v) => {
 				let s = v.signum() as i32;
-				(s, v.abs() as u64)
+				(s, v.abs() as u128)
 			}
 			Int::U8(v) => {
 				let s = if v > 0 { 1 } else { 0 };
-				(s, v as u64)
+				(s, v as u128)
 			}
 			Int::U16(v) => {
 				let s = if v > 0 { 1 } else { 0 };
-				(s, v as u64)
+				(s, v as u128)
 			}
 			Int::U32(v) => {
 				let s = if v > 0 { 1 } else { 0 };
-				(s, v as u64)
+				(s, v as u128)
 			}
 			Int::U64(v) => {
 				let s = if v > 0 { 1 } else { 0 };
-				(s, v as u64)
+				(s, v as u128)
+			}
+			Int::Lit(v) => {
+				let s = if v > 0 { 1 } else { 0 };
+				(s, v.abs() as u128)
 			}
 		}
 	}
@@ -179,6 +200,7 @@ impl Display for Int {
 			Int::U16(v) => write!(f, "{v}"),
 			Int::U32(v) => write!(f, "{v}"),
 			Int::U64(v) => write!(f, "{v}"),
+			Int::Lit(v) => write!(f, "{v}"),
 		}
 	}
 }

@@ -5,9 +5,47 @@ pub struct KindId {
 	ptr: *const Kind,
 }
 
+impl Default for KindId {
+	fn default() -> Self {
+		KindId::none()
+	}
+}
+
 impl KindId {
 	pub fn as_kind(&self) -> &'static Kind {
 		unsafe { &*self.ptr }
+	}
+
+	pub fn none() -> Self {
+		static NONE: OnceLock<KindId> = OnceLock::new();
+		let out = NONE.get_or_init(|| Kind::None.id());
+		*out
+	}
+
+	pub fn unknown() -> Self {
+		static UNKNOWN: OnceLock<KindId> = OnceLock::new();
+		let out = UNKNOWN.get_or_init(|| Kind::Unknown.id());
+		*out
+	}
+
+	pub fn is_none(&self) -> bool {
+		self.as_kind() != &Kind::None
+	}
+
+	pub fn is_some(&self) -> bool {
+		!self.is_none()
+	}
+
+	pub fn is_valid(&self) -> bool {
+		self.is_some() && self.is_known()
+	}
+
+	pub fn is_unknown(&self) -> bool {
+		self.as_kind() == &Kind::Unknown
+	}
+
+	pub fn is_known(&self) -> bool {
+		!self.is_unknown()
 	}
 }
 
@@ -42,6 +80,7 @@ unsafe impl Sync for KindId {}
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub enum Kind {
 	None,
+	Unknown,
 	Any,
 	Unit,
 	Bool,
