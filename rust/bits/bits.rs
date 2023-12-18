@@ -3,6 +3,7 @@ use std::{
 	collections::HashMap,
 	fmt::{Debug, Display, Formatter},
 	hash::Hash,
+	io::Write,
 	sync::{Arc, OnceLock, RwLock},
 };
 
