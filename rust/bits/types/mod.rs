@@ -1,5 +1,11 @@
 use super::*;
 
+pub mod repr;
+pub mod symbol;
+
+pub use repr::*;
+pub use symbol::*;
+
 /// Type descriptor for any type.
 ///
 /// Types can be concrete, abstract, parametric, etc. This can also represent
@@ -22,14 +28,33 @@ use super::*;
 /// representation of a symbol (if any) is left to the environment.
 #[derive(Copy, Clone)]
 pub struct Type {
-	data: &'static TypeKind,
+	data: &'static TypeData,
 }
 
-static NONE: TypeKind = TypeKind::None;
-static UNIT: TypeKind = TypeKind::Unit;
-static NEVER: TypeKind = TypeKind::Never;
-static ANY: TypeKind = TypeKind::Any;
-static UNKNOWN: TypeKind = TypeKind::Unknown;
+static NONE: TypeData = TypeData {
+	kind: TypeKind::None,
+	repr: Some(DataRepr::Empty),
+};
+
+static UNIT: TypeData = TypeData {
+	kind: TypeKind::Unit,
+	repr: Some(DataRepr::Empty),
+};
+
+static NEVER: TypeData = TypeData {
+	kind: TypeKind::Never,
+	repr: None,
+};
+
+static ANY: TypeData = TypeData {
+	kind: TypeKind::Any,
+	repr: None,
+};
+
+static UNKNOWN: TypeData = TypeData {
+	kind: TypeKind::Unknown,
+	repr: None,
+};
 
 impl Type {
 	/// Null-value for a type, representing the lack of a type (e.g. void type).
@@ -84,10 +109,13 @@ impl Type {
 	/// This will always return the same type when called on the same base type.
 	pub fn to_invalid(&self) -> Type {
 		static INVALID: TypeDataMap = TypeDataMap::new();
-		if let TypeKind::Invalid(..) = self.data {
+		if let TypeKind::Invalid(..) = self.data.kind {
 			*self
 		} else {
-			INVALID.get(self, |typ| TypeKind::Invalid(typ))
+			INVALID.get(self, |typ| TypeData {
+				kind: TypeKind::Invalid(typ),
+				repr: None,
+			})
 		}
 	}
 
@@ -98,13 +126,13 @@ impl Type {
 
 	/// Is this type an invalid type?
 	pub fn is_invalid(&self) -> bool {
-		matches!(self.data, TypeKind::Invalid(..))
+		matches!(self.data.kind, TypeKind::Invalid(..))
 	}
 
 	/// Return a valid type either by unwrapping an invalid type or returning
 	/// self if it is already valid.
 	pub fn get_valid(&self) -> Type {
-		if let &TypeKind::Invalid(typ) = self.data {
+		if let TypeKind::Invalid(typ) = self.data.kind {
 			typ
 		} else {
 			*self
@@ -139,6 +167,11 @@ impl Type {
 		Type { data }
 	}
 
+	/// Underlying data representation for types that have it.
+	pub fn data(&self) -> Option<&'static DataRepr> {
+		self.data.repr.as_ref()
+	}
+
 	/// Return the sum of this type with the given type.
 	pub fn sum(&self, _other: Type) -> Type {
 		todo!()
@@ -161,8 +194,8 @@ impl Type {
 	}
 
 	#[inline]
-	fn as_ptr(&self) -> *const TypeKind {
-		self.data
+	fn as_ptr(&self) -> *const TypeData {
+		self.data.as_ptr()
 	}
 }
 
@@ -205,6 +238,12 @@ impl PartialOrd for Type {
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+struct TypeData {
+	kind: TypeKind,
+	repr: Option<DataRepr>,
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 enum TypeKind {
 	None,
 	Unit,
@@ -214,9 +253,9 @@ enum TypeKind {
 	Invalid(Type),
 }
 
-impl TypeKind {
+impl TypeData {
 	fn store(self) -> &'static Self {
-		match self {
+		match self.kind {
 			TypeKind::None => &NONE,
 			TypeKind::Unknown => &UNKNOWN,
 			_ => Box::leak(Box::new(self)),
@@ -232,31 +271,31 @@ impl TypeKind {
 	}
 }
 
-impl Debug for TypeKind {
+impl Debug for TypeData {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let mut ptr = false;
-		match self {
-			Self::None => {
+		match self.kind {
+			TypeKind::None => {
 				write!(f, "None")?;
 				ptr = self.as_ptr() != NONE.as_ptr();
 			}
-			Self::Unit => {
+			TypeKind::Unit => {
 				write!(f, "Unit")?;
 				ptr = self.as_ptr() != UNIT.as_ptr();
 			}
-			Self::Never => {
+			TypeKind::Never => {
 				write!(f, "Never")?;
 				ptr = self.as_ptr() != NEVER.as_ptr();
 			}
-			Self::Any => {
+			TypeKind::Any => {
 				write!(f, "Any")?;
 				ptr = self.as_ptr() != ANY.as_ptr();
 			}
-			Self::Unknown => {
+			TypeKind::Unknown => {
 				write!(f, "Unknown")?;
 				ptr = self.as_ptr() != UNKNOWN.as_ptr();
 			}
-			Self::Invalid(typ) => {
+			TypeKind::Invalid(typ) => {
 				write!(f, "Invalid({typ:?}")?;
 			}
 		}
@@ -267,14 +306,14 @@ impl Debug for TypeKind {
 	}
 }
 
-impl Display for TypeKind {
+impl Display for TypeData {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{self:?}")
 	}
 }
 
 struct TypeDataMap {
-	map: OnceLock<RwLock<HashMap<Type, &'static TypeKind>>>,
+	map: OnceLock<RwLock<HashMap<Type, &'static TypeData>>>,
 }
 
 impl TypeDataMap {
@@ -282,7 +321,7 @@ impl TypeDataMap {
 		Self { map: OnceLock::new() }
 	}
 
-	pub fn get<F: Fn(Type) -> TypeKind>(&self, key: &Type, init: F) -> Type {
+	pub fn get<F: Fn(Type) -> TypeData>(&self, key: &Type, init: F) -> Type {
 		let map = self.map.get_or_init(|| Default::default());
 		if let Some(data) = map.read().unwrap().get(key).copied() {
 			return Type { data };
