@@ -19,14 +19,3 @@ pub use float::*;
 pub use int::*;
 pub use str::*;
 pub use writer::*;
-
-const _: () = {
-	use std::panic::UnwindSafe;
-
-	fn thread_safe<T: Send + Sync + UnwindSafe>() {}
-
-	fn assert() {
-		thread_safe::<Data>();
-		thread_safe::<Kind>();
-	}
-};

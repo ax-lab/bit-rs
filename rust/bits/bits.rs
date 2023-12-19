@@ -7,6 +7,9 @@ use std::{
 	sync::{Arc, OnceLock, RwLock},
 };
 
+pub mod types;
+pub use types::*;
+
 pub mod core;
 pub mod input;
 pub mod ops;
@@ -20,3 +23,15 @@ pub use result::*;
 pub fn version() -> &'static str {
 	"0.1.0"
 }
+
+const _: () = {
+	use std::panic::UnwindSafe;
+
+	fn thread_safe<T: Send + Sync + UnwindSafe>() {}
+
+	fn assert() {
+		thread_safe::<Data>();
+		thread_safe::<Kind>();
+		thread_safe::<Type>();
+	}
+};
