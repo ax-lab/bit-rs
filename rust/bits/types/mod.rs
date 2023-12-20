@@ -108,7 +108,7 @@ impl Type {
 	///
 	/// This will always return the same type when called on the same base type.
 	pub fn to_invalid(&self) -> Type {
-		static INVALID: TypeDataMap = TypeDataMap::new();
+		static INVALID: TypeMap<Type> = TypeMap::new();
 		if let TypeKind::Invalid(..) = self.data.kind {
 			*self
 		} else {
@@ -251,6 +251,7 @@ enum TypeKind {
 	Any,
 	Unknown,
 	Invalid(Type),
+	Builtin(Primitive),
 }
 
 impl TypeData {
@@ -298,6 +299,10 @@ impl Debug for TypeData {
 			TypeKind::Invalid(typ) => {
 				write!(f, "Invalid({typ:?}")?;
 			}
+			TypeKind::Builtin(typ) => {
+				write!(f, "{typ:?}")?;
+				ptr = self.as_ptr() != Type::builtin(typ).as_ptr();
+			}
 		}
 		if ptr {
 			write!(f, "#{:06x}", self.display_id())?;
@@ -312,30 +317,29 @@ impl Display for TypeData {
 	}
 }
 
-struct TypeDataMap {
-	map: OnceLock<RwLock<HashMap<Type, &'static TypeData>>>,
+struct TypeMap<T: Eq + Hash + Clone> {
+	map: OnceLock<RwLock<HashMap<T, &'static TypeData>>>,
 }
 
-impl TypeDataMap {
+impl<T: Eq + Hash + Clone> TypeMap<T> {
 	pub const fn new() -> Self {
 		Self { map: OnceLock::new() }
 	}
 
-	pub fn get<F: Fn(Type) -> TypeData>(&self, key: &Type, init: F) -> Type {
+	pub fn get<F: Fn(T) -> TypeData>(&self, key: &T, init: F) -> Type {
 		let map = self.map.get_or_init(|| Default::default());
 		if let Some(data) = map.read().unwrap().get(key).copied() {
 			return Type { data };
 		}
 
 		let mut map = map.write().unwrap();
-		let entry = map.entry(*key).or_insert_with(|| {
-			let data = init(*key);
+		let entry = map.entry(key.clone()).or_insert_with(|| {
+			let data = init(key.clone());
 			data.store()
 		});
 		Type { data: *entry }
 	}
 }
-
 #[cfg(test)]
 mod tests {
 	use super::*;

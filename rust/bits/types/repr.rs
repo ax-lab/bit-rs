@@ -32,10 +32,14 @@ pub enum DataRepr {
 	Record(&'static [Type]),
 	/// Untagged union type.
 	Union(&'static [Type]),
+	/// Fixed array.
+	Array(usize, Type),
+	/// Slice type.
+	Slice(Type),
 }
 
 /// Primitive data types.
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Primitive {
 	/// Boolean
 	Bool,
@@ -67,4 +71,30 @@ pub enum Primitive {
 	SIntPtr,
 	/// Signed integer type with the result of subtracting two pointers.
 	PtrDiff,
+}
+
+impl Type {
+	pub fn builtin(typ: Primitive) -> Self {
+		static MAP: TypeMap<Primitive> = TypeMap::new();
+		MAP.get(&typ, |typ| Self::from_primitive(typ))
+	}
+
+	fn from_primitive(typ: Primitive) -> TypeData {
+		TypeData {
+			kind: TypeKind::Builtin(typ),
+			repr: Some(DataRepr::Builtin(typ)),
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	pub fn builtin_types() {
+		let u32 = Type::builtin(Primitive::UInt(32));
+		assert_eq!(u32, Type::builtin(Primitive::UInt(32)));
+		assert_ne!(u32, Type::builtin(Primitive::UInt(64)));
+	}
 }
