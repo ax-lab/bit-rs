@@ -1,4 +1,7 @@
-use std::alloc::*;
+use std::{
+	alloc::*,
+	sync::atomic::{AtomicU32, Ordering as SyncOrder},
+};
 
 use super::*;
 
@@ -19,7 +22,11 @@ pub struct Symbol {
 
 impl Symbol {
 	pub fn empty() -> Symbol {
-		static DATA: SymbolData = SymbolData { len: 0, buf: [0] };
+		static DATA: SymbolData = SymbolData {
+			len: 0,
+			cnt: SymbolCounter::new(),
+			buf: [0],
+		};
 		Symbol { data: &DATA }
 	}
 
@@ -42,10 +49,16 @@ impl Symbol {
 				return Self { data };
 			}
 
-			let data = SymbolData::store(bytes);
+			let data = SymbolData::store(bytes, SymbolCounter::new());
 			map.insert(data.as_bytes(), data);
 			Self { data }
 		}
+	}
+
+	pub fn to_unique(&self) -> Symbol {
+		let next = self.data.cnt.next();
+		let data = SymbolData::store(self.as_bytes(), next);
+		Self { data }
 	}
 
 	pub fn len(&self) -> usize {
@@ -109,27 +122,66 @@ impl PartialOrd for Symbol {
 
 impl Debug for Symbol {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "Symbol(")?;
+
 		if let Ok(str) = self.as_str() {
-			write!(f, "Symbol({str:?})")
+			write!(f, "{str:?}")?;
 		} else {
-			write!(f, "Symbol({:?})", self.as_bytes())
+			write!(f, "{:?}", self.as_bytes())?;
 		}
+
+		let cnt = self.data.counter();
+		if cnt > 0 {
+			write!(f, "${cnt}")?;
+		}
+
+		write!(f, ")")
 	}
 }
 
 impl Display for Symbol {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		if let Ok(str) = self.as_str() {
-			write!(f, "#{str:?}")
+			write!(f, "{str:?}")
 		} else {
-			write!(f, "#({:?})", self.as_bytes())
+			write!(f, "({:?})", self.as_bytes())
+		}?;
+
+		write!(f, "$")?;
+
+		let cnt = self.data.counter();
+		if cnt > 0 {
+			write!(f, "{cnt}")?;
 		}
+
+		Ok(())
 	}
 }
 
 struct SymbolData {
 	len: usize,
+	cnt: SymbolCounter,
 	buf: [u8; 1],
+}
+
+enum SymbolCounter {
+	Zero(AtomicU32),
+	Uniq(u32, &'static AtomicU32),
+}
+
+impl SymbolCounter {
+	pub const fn new() -> Self {
+		Self::Zero(AtomicU32::new(1))
+	}
+
+	pub fn next(&'static self) -> Self {
+		match self {
+			SymbolCounter::Zero(counter) | &SymbolCounter::Uniq(_, counter) => {
+				let count = counter.fetch_add(1, SyncOrder::Relaxed);
+				SymbolCounter::Uniq(count, counter)
+			}
+		}
+	}
 }
 
 impl SymbolData {
@@ -143,9 +195,16 @@ impl SymbolData {
 		self as *const Self
 	}
 
-	fn store(bytes: &[u8]) -> &'static Self {
+	fn counter(&self) -> u32 {
+		match self.cnt {
+			SymbolCounter::Zero(_) => 0,
+			SymbolCounter::Uniq(n, _) => n,
+		}
+	}
+
+	fn store(bytes: &[u8], cnt: SymbolCounter) -> &'static Self {
 		let count = bytes.len();
-		let size = std::mem::size_of::<usize>() + count;
+		let size = std::mem::size_of::<SymbolData>() + count - 1;
 		let align = std::mem::align_of::<Self>();
 		let layout = Layout::from_size_align(size, align).unwrap();
 		let data = unsafe {
@@ -153,6 +212,7 @@ impl SymbolData {
 			&mut *ptr
 		};
 		data.len = count;
+		data.cnt = cnt;
 		unsafe {
 			std::ptr::copy_nonoverlapping(bytes.as_ptr(), data.buf.as_mut_ptr(), count);
 		}
@@ -179,8 +239,45 @@ mod tests {
 		assert_eq!(Symbol::str("abc").as_ptr(), Symbol::str("abc").as_ptr());
 		assert_eq!(Symbol::str("123").as_ptr(), Symbol::str("123").as_ptr());
 
-		assert_eq!("#\"abc\"", Symbol::str("abc").to_string());
-		assert_eq!("#\"123\"", Symbol::str("123").to_string());
-		assert_eq!("#\"abc\"", Symbol::get("abc".as_bytes()).to_string());
+		assert_eq!("\"abc\"$", Symbol::str("abc").to_string());
+		assert_eq!("\"123\"$", Symbol::str("123").to_string());
+		assert_eq!("\"abc\"$", Symbol::get("abc".as_bytes()).to_string());
+	}
+
+	#[test]
+	fn unique_symbols() {
+		let a0 = Symbol::empty();
+		let a1 = a0.to_unique();
+		let a2 = a0.to_unique();
+		let a3 = a1.to_unique();
+
+		let b0 = Symbol::str("abc");
+		let b1 = b0.to_unique();
+		let b2 = b0.to_unique();
+		let b3 = b1.to_unique();
+
+		assert_ne!(a0, a1);
+		assert_ne!(a0, a2);
+		assert_ne!(a0, a3);
+		assert_ne!(a1, a2);
+		assert_ne!(a1, a3);
+		assert_ne!(a2, a3);
+
+		assert_ne!(b0, b1);
+		assert_ne!(b0, b2);
+		assert_ne!(b0, b3);
+		assert_ne!(b1, b2);
+		assert_ne!(b1, b3);
+		assert_ne!(b2, b3);
+
+		assert_eq!("\"\"$", a0.to_string());
+		assert_eq!("\"\"$1", a1.to_string());
+		assert_eq!("\"\"$2", a2.to_string());
+		assert_eq!("\"\"$3", a3.to_string());
+
+		assert_eq!("\"abc\"$", b0.to_string());
+		assert_eq!("\"abc\"$1", b1.to_string());
+		assert_eq!("\"abc\"$2", b2.to_string());
+		assert_eq!("\"abc\"$3", b3.to_string());
 	}
 }
