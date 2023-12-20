@@ -30,6 +30,10 @@ impl Symbol {
 		Symbol { data: &DATA }
 	}
 
+	pub fn unique(str: &str) -> Self {
+		Self::str(str).to_unique()
+	}
+
 	pub fn str(str: &str) -> Self {
 		Self::get(str.as_bytes())
 	}

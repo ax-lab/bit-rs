@@ -34,26 +34,36 @@ pub struct Type {
 static NONE: TypeData = TypeData {
 	kind: TypeKind::None,
 	repr: Some(DataRepr::Empty),
+	debug_value: |_, f| write!(f, ""),
+	display_value: None,
 };
 
 static UNIT: TypeData = TypeData {
 	kind: TypeKind::Unit,
 	repr: Some(DataRepr::Empty),
+	debug_value: |_, f| write!(f, "()"),
+	display_value: None,
 };
 
 static NEVER: TypeData = TypeData {
 	kind: TypeKind::Never,
 	repr: None,
+	debug_value: |_, f| write!(f, "(!)"),
+	display_value: None,
 };
 
 static ANY: TypeData = TypeData {
 	kind: TypeKind::Any,
 	repr: None,
+	debug_value: |_, f| write!(f, "(any)"),
+	display_value: None,
 };
 
 static UNKNOWN: TypeData = TypeData {
 	kind: TypeKind::Unknown,
 	repr: None,
+	debug_value: |_, f| write!(f, "(???)"),
+	display_value: None,
 };
 
 impl Type {
@@ -115,6 +125,8 @@ impl Type {
 			INVALID.get(self, |typ| TypeData {
 				kind: TypeKind::Invalid(typ),
 				repr: None,
+				debug_value: |_, f| write!(f, "(!!!)"),
+				display_value: None,
 			})
 		}
 	}
@@ -168,7 +180,7 @@ impl Type {
 	}
 
 	/// Underlying data representation for types that have it.
-	pub fn data(&self) -> Option<&'static DataRepr> {
+	pub fn repr(&self) -> Option<&'static DataRepr> {
 		self.data.repr.as_ref()
 	}
 
@@ -196,6 +208,18 @@ impl Type {
 	#[inline]
 	fn as_ptr(&self) -> *const TypeData {
 		self.data.as_ptr()
+	}
+
+	pub fn debug_value(&self, v: Value, f: &mut Formatter) -> std::fmt::Result {
+		(self.data.debug_value)(v, f)
+	}
+
+	pub fn display_value(&self, v: Value, f: &mut Formatter) -> std::fmt::Result {
+		if let Some(display) = self.data.display_value {
+			(display)(v, f)
+		} else {
+			self.debug_value(v, f)
+		}
 	}
 }
 
@@ -241,6 +265,8 @@ impl PartialOrd for Type {
 struct TypeData {
 	kind: TypeKind,
 	repr: Option<DataRepr>,
+	debug_value: fn(Value, &mut Formatter) -> std::fmt::Result,
+	display_value: Option<fn(Value, &mut Formatter) -> std::fmt::Result>,
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
@@ -277,27 +303,31 @@ impl Debug for TypeData {
 		let mut ptr = false;
 		match self.kind {
 			TypeKind::None => {
-				write!(f, "None")?;
+				write!(f, "")?;
 				ptr = self.as_ptr() != NONE.as_ptr();
 			}
 			TypeKind::Unit => {
-				write!(f, "Unit")?;
+				write!(f, "()")?;
 				ptr = self.as_ptr() != UNIT.as_ptr();
 			}
 			TypeKind::Never => {
-				write!(f, "Never")?;
+				write!(f, "!")?;
 				ptr = self.as_ptr() != NEVER.as_ptr();
 			}
 			TypeKind::Any => {
-				write!(f, "Any")?;
+				write!(f, "any")?;
 				ptr = self.as_ptr() != ANY.as_ptr();
 			}
 			TypeKind::Unknown => {
-				write!(f, "Unknown")?;
+				write!(f, "???")?;
 				ptr = self.as_ptr() != UNKNOWN.as_ptr();
 			}
 			TypeKind::Invalid(typ) => {
-				write!(f, "Invalid({typ:?}")?;
+				if typ != Type::none() {
+					write!(f, "!!!({typ:?}")?;
+				} else {
+					write!(f, "!!!")?;
+				}
 			}
 			TypeKind::Builtin(typ) => {
 				write!(f, "{typ:?}")?;

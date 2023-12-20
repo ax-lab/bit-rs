@@ -39,7 +39,7 @@ pub enum DataRepr {
 }
 
 /// Primitive data types.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Primitive {
 	/// Boolean
 	Bool,
@@ -79,10 +79,70 @@ impl Type {
 		MAP.get(&typ, |typ| Self::from_primitive(typ))
 	}
 
+	pub fn is_builtin(&self, typ: Primitive) -> bool {
+		if let Some(&DataRepr::Builtin(repr)) = self.repr() {
+			repr == typ
+		} else {
+			false
+		}
+	}
+
 	fn from_primitive(typ: Primitive) -> TypeData {
 		TypeData {
 			kind: TypeKind::Builtin(typ),
 			repr: Some(DataRepr::Builtin(typ)),
+			debug_value: |v, f| Self::fmt_builtin_value(true, v, f),
+			display_value: Some(|v, f| Self::fmt_builtin_value(false, v, f)),
+		}
+	}
+
+	fn fmt_builtin_value(debug: bool, v: Value, f: &mut Formatter) -> std::fmt::Result {
+		let _ = debug;
+		if let Some(DataRepr::Builtin(typ)) = v.get_type().repr() {
+			let v = v.data();
+			match typ {
+				Primitive::Bool => write!(f, "{}", v.bool()),
+				Primitive::SInt(8) => write!(f, "{}", v.i8()),
+				Primitive::SInt(16) => write!(f, "{}", v.i16()),
+				Primitive::SInt(32) => write!(f, "{}", v.i32()),
+				Primitive::UInt(8) => write!(f, "{}", v.u8()),
+				Primitive::UInt(16) => write!(f, "{}", v.u16()),
+				Primitive::UInt(32) => write!(f, "{}", v.u32()),
+				Primitive::SInt(0..=64) => write!(f, "{}", v.i64()),
+				Primitive::UInt(0..=64) => write!(f, "{}", v.u64()),
+				Primitive::SInt(n) => todo!("SInt({n}) not implemented"),
+				Primitive::UInt(n) => todo!("UInt({n}) not implemented"),
+				Primitive::UIntSize => write!(f, "{}", v.usize()),
+				Primitive::SIntSize => write!(f, "{}", v.isize()),
+				Primitive::Char => write!(f, "{}", v.char()),
+				Primitive::Float32 => write!(f, "{:?}", v.f32()),
+				Primitive::Float64 => write!(f, "{:?}", v.f64()),
+				Primitive::Pointer => write!(f, "{:?}", v.ptr()),
+				Primitive::UIntPtr => write!(f, "{:?}", v.usize()),
+				Primitive::SIntPtr => write!(f, "{:?}", v.isize()),
+				Primitive::PtrDiff => write!(f, "{:?}", v.isize()),
+			}
+		} else {
+			unreachable!("invalid value")
+		}
+	}
+}
+
+impl Debug for Primitive {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		match self {
+			Self::Bool => write!(f, "bool"),
+			Self::SInt(n) => write!(f, "i{n}"),
+			Self::UInt(n) => write!(f, "u{n}"),
+			Self::SIntSize => write!(f, "isize"),
+			Self::UIntSize => write!(f, "usize"),
+			Self::Char => write!(f, "char"),
+			Self::Float32 => write!(f, "f32"),
+			Self::Float64 => write!(f, "f64"),
+			Self::Pointer => write!(f, "ptr"),
+			Self::UIntPtr => write!(f, "uintptr"),
+			Self::SIntPtr => write!(f, "intptr"),
+			Self::PtrDiff => write!(f, "ptr_diff"),
 		}
 	}
 }
