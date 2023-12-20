@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct KindId {
-	ptr: *const Kind,
+	ptr: *const XKind,
 }
 
 impl Default for KindId {
@@ -12,24 +12,24 @@ impl Default for KindId {
 }
 
 impl KindId {
-	pub fn as_kind(&self) -> &'static Kind {
+	pub fn as_kind(&self) -> &'static XKind {
 		unsafe { &*self.ptr }
 	}
 
 	pub fn none() -> Self {
 		static NONE: OnceLock<KindId> = OnceLock::new();
-		let out = NONE.get_or_init(|| Kind::None.id());
+		let out = NONE.get_or_init(|| XKind::None.id());
 		*out
 	}
 
 	pub fn unknown() -> Self {
 		static UNKNOWN: OnceLock<KindId> = OnceLock::new();
-		let out = UNKNOWN.get_or_init(|| Kind::Unknown.id());
+		let out = UNKNOWN.get_or_init(|| XKind::Unknown.id());
 		*out
 	}
 
 	pub fn is_none(&self) -> bool {
-		self.as_kind() != &Kind::None
+		self.as_kind() != &XKind::None
 	}
 
 	pub fn is_some(&self) -> bool {
@@ -41,7 +41,7 @@ impl KindId {
 	}
 
 	pub fn is_unknown(&self) -> bool {
-		self.as_kind() == &Kind::Unknown
+		self.as_kind() == &XKind::Unknown
 	}
 
 	pub fn is_known(&self) -> bool {
@@ -68,7 +68,7 @@ impl PartialOrd for KindId {
 	}
 }
 
-impl From<KindId> for Kind {
+impl From<KindId> for XKind {
 	fn from(value: KindId) -> Self {
 		value.as_kind().clone()
 	}
@@ -78,7 +78,7 @@ unsafe impl Send for KindId {}
 unsafe impl Sync for KindId {}
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum Kind {
+pub enum XKind {
 	None,
 	Unknown,
 	Any,
@@ -87,43 +87,43 @@ pub enum Kind {
 	Int(IntKind),
 	Float(FloatKind),
 	Str,
-	Array(&'static Kind),
+	Array(&'static XKind),
 }
 
-impl Data {
-	pub fn is_kind_of(&self, kind: &Kind) -> bool {
+impl XValueCell {
+	pub fn is_kind_of(&self, kind: &XKind) -> bool {
 		self.kind().is_valid(kind)
 	}
 }
 
-impl<T: Into<Value>> From<T> for Data {
+impl<T: Into<XValue>> From<T> for XValueCell {
 	fn from(value: T) -> Self {
 		Self { val: value.into() }
 	}
 }
 
-impl Kind {
+impl XKind {
 	pub fn id(&self) -> KindId {
 		KindId { ptr: self.as_ref() }
 	}
 
 	pub fn is_none(&self) -> bool {
-		self == &Kind::None
+		self == &XKind::None
 	}
 
-	pub fn is_valid(&self, other: &Kind) -> bool {
+	pub fn is_valid(&self, other: &XKind) -> bool {
 		match other {
-			Kind::None => false,
-			Kind::Any => self != &Kind::None,
-			Kind::Int(other) => {
-				if let Kind::Int(kind) = self {
+			XKind::None => false,
+			XKind::Any => self != &XKind::None,
+			XKind::Int(other) => {
+				if let XKind::Int(kind) = self {
 					kind.is_valid(other)
 				} else {
 					false
 				}
 			}
-			Kind::Float(other) => {
-				if let Kind::Float(kind) = self {
+			XKind::Float(other) => {
+				if let XKind::Float(kind) = self {
 					kind.is_valid(other)
 				} else {
 					false
@@ -134,15 +134,15 @@ impl Kind {
 	}
 }
 
-impl Default for Kind {
+impl Default for XKind {
 	fn default() -> Self {
-		Kind::None
+		XKind::None
 	}
 }
 
-impl Kind {
+impl XKind {
 	pub fn as_ref(&self) -> &'static Self {
-		static MAP: OnceLock<RwLock<HashMap<Kind, KindPtr>>> = OnceLock::new();
+		static MAP: OnceLock<RwLock<HashMap<XKind, KindPtr>>> = OnceLock::new();
 		let map = MAP.get_or_init(|| Default::default());
 		{
 			let map = map.read().unwrap();
@@ -156,15 +156,15 @@ impl Kind {
 		return entry.as_ref();
 
 		#[derive(Copy, Clone, Eq, PartialEq)]
-		struct KindPtr(*const Kind);
+		struct KindPtr(*const XKind);
 
 		impl KindPtr {
-			pub fn new(kind: Kind) -> Self {
+			pub fn new(kind: XKind) -> Self {
 				let ptr = Box::leak(Box::new(kind));
 				Self(ptr)
 			}
 
-			pub fn as_ref(self) -> &'static Kind {
+			pub fn as_ref(self) -> &'static XKind {
 				unsafe { &*self.0 }
 			}
 		}
@@ -180,18 +180,18 @@ mod tests {
 
 	#[test]
 	fn kind_as_ref() {
-		let a1 = Kind::Float(FloatKind::F32).as_ref();
-		let a2 = Kind::Float(FloatKind::F32).as_ref();
+		let a1 = XKind::Float(FloatKind::F32).as_ref();
+		let a2 = XKind::Float(FloatKind::F32).as_ref();
 
-		let b1 = Kind::Float(FloatKind::F64).as_ref();
-		let b2 = Kind::Float(FloatKind::F64).as_ref();
+		let b1 = XKind::Float(FloatKind::F64).as_ref();
+		let b2 = XKind::Float(FloatKind::F64).as_ref();
 
-		assert_eq!(a1, &Kind::Float(FloatKind::F32));
-		assert_eq!(a2, &Kind::Float(FloatKind::F32));
-		assert_eq!(a1 as *const Kind, a2 as *const Kind);
+		assert_eq!(a1, &XKind::Float(FloatKind::F32));
+		assert_eq!(a2, &XKind::Float(FloatKind::F32));
+		assert_eq!(a1 as *const XKind, a2 as *const XKind);
 
-		assert_eq!(b1, &Kind::Float(FloatKind::F64));
-		assert_eq!(b2, &Kind::Float(FloatKind::F64));
-		assert_eq!(b1 as *const Kind, b2 as *const Kind);
+		assert_eq!(b1, &XKind::Float(FloatKind::F64));
+		assert_eq!(b2, &XKind::Float(FloatKind::F64));
+		assert_eq!(b1 as *const XKind, b2 as *const XKind);
 	}
 }

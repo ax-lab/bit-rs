@@ -37,23 +37,23 @@ pub trait Operator {
 }
 
 pub trait OpNullary: Operator {
-	fn eval(&self) -> Result<Data>;
+	fn eval(&self) -> Result<XValueCell>;
 }
 
 pub trait OpUnary: Operator {
-	fn eval(&self, arg: Data) -> Result<Data>;
+	fn eval(&self, arg: XValueCell) -> Result<XValueCell>;
 }
 
 pub trait OpBinary: Operator {
-	fn eval(&self, lhs: Data, rhs: Data) -> Result<Data>;
+	fn eval(&self, lhs: XValueCell, rhs: XValueCell) -> Result<XValueCell>;
 }
 
 pub trait OpTernary: Operator {
-	fn eval(&self, a: Data, b: Data, c: Data) -> Result<Data>;
+	fn eval(&self, a: XValueCell, b: XValueCell, c: XValueCell) -> Result<XValueCell>;
 }
 
 pub trait OpVariadic: Operator {
-	fn eval(&self, args: &[Data]) -> Result<Data>;
+	fn eval(&self, args: &[XValueCell]) -> Result<XValueCell>;
 }
 
 pub struct OpTable {

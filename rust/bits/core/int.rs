@@ -1,13 +1,13 @@
 use super::*;
 
-pub const I8: Kind = Kind::Int(IntKind::I8);
-pub const U8: Kind = Kind::Int(IntKind::U8);
-pub const I16: Kind = Kind::Int(IntKind::I16);
-pub const I32: Kind = Kind::Int(IntKind::I32);
-pub const I64: Kind = Kind::Int(IntKind::I64);
-pub const U16: Kind = Kind::Int(IntKind::U16);
-pub const U32: Kind = Kind::Int(IntKind::U32);
-pub const U64: Kind = Kind::Int(IntKind::U64);
+pub const I8: XKind = XKind::Int(IntKind::I8);
+pub const U8: XKind = XKind::Int(IntKind::U8);
+pub const I16: XKind = XKind::Int(IntKind::I16);
+pub const I32: XKind = XKind::Int(IntKind::I32);
+pub const I64: XKind = XKind::Int(IntKind::I64);
+pub const U16: XKind = XKind::Int(IntKind::U16);
+pub const U32: XKind = XKind::Int(IntKind::U32);
+pub const U64: XKind = XKind::Int(IntKind::U64);
 
 #[derive(Copy, Clone, Debug)]
 pub enum Int {
@@ -239,9 +239,9 @@ macro_rules! from_int {
 			}
 		}
 
-		impl From<$t> for Value {
-			fn from(value: $t) -> Value {
-				Value::Int(value.into())
+		impl From<$t> for XValue {
+			fn from(value: $t) -> XValue {
+				XValue::Int(value.into())
 			}
 		}
 	};
@@ -262,9 +262,9 @@ impl From<usize> for Int {
 	}
 }
 
-impl From<usize> for Value {
+impl From<usize> for XValue {
 	fn from(value: usize) -> Self {
-		Value::Int(value.into())
+		XValue::Int(value.into())
 	}
 }
 

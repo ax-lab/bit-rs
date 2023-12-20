@@ -118,9 +118,9 @@ macro_rules! from_float {
 			}
 		}
 
-		impl From<$t> for Value {
-			fn from(value: $t) -> Value {
-				Value::Float(value.into())
+		impl From<$t> for XValue {
+			fn from(value: $t) -> XValue {
+				XValue::Float(value.into())
 			}
 		}
 	};

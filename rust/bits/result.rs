@@ -195,9 +195,9 @@ mod tests {
 		assert_eq!("error A", format!("{err}"));
 		assert_eq!("Error(\"error A\")", format!("{err:?}"));
 
-		let err: Error = Data::new(123).to_error();
-		assert!(err.is::<Data>());
-		assert_eq!(Some(&123.into()), err.get::<Data>());
+		let err: Error = XValueCell::new(123).to_error();
+		assert!(err.is::<XValueCell>());
+		assert_eq!(Some(&123.into()), err.get::<XValueCell>());
 
 		Ok(())
 	}

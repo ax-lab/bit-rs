@@ -1,13 +1,13 @@
 use super::*;
 
-impl From<&str> for Value {
+impl From<&str> for XValue {
 	fn from(value: &str) -> Self {
-		Value::Str(value.into())
+		XValue::Str(value.into())
 	}
 }
 
-impl From<String> for Value {
+impl From<String> for XValue {
 	fn from(value: String) -> Self {
-		Value::Str(value.into())
+		XValue::Str(value.into())
 	}
 }

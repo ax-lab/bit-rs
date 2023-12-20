@@ -1,35 +1,35 @@
 use super::*;
 
 #[derive(Default, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub struct Data {
-	pub val: Value,
+pub struct XValueCell {
+	pub val: XValue,
 }
 
-impl Data {
-	pub fn new<T: Into<Value>>(val: T) -> Self {
+impl XValueCell {
+	pub fn new<T: Into<XValue>>(val: T) -> Self {
 		Self { val: val.into() }
 	}
 
-	pub fn kind(&self) -> Kind {
+	pub fn kind(&self) -> XKind {
 		self.val.kind()
 	}
 }
 
-impl Debug for Data {
+impl Debug for XValueCell {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let kind = self.kind();
 		write!(f, "<{kind:?}>({})", self.val)
 	}
 }
 
-impl Display for Data {
+impl Display for XValueCell {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{}", self.val)
 	}
 }
 
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
-pub enum Value {
+pub enum XValue {
 	None,
 	Unit,
 	Bool(bool),
@@ -39,36 +39,36 @@ pub enum Value {
 	Array(Array),
 }
 
-impl Value {
-	pub fn kind(&self) -> Kind {
+impl XValue {
+	pub fn kind(&self) -> XKind {
 		match self {
-			Value::None => Kind::None,
-			Value::Unit => Kind::Unit,
-			Value::Bool(_) => Kind::Bool,
-			Value::Int(v) => Kind::Int(v.kind()),
-			Value::Float(v) => Kind::Float(v.kind()),
-			Value::Str(_) => Kind::Str,
-			Value::Array(v) => v.kind(),
+			XValue::None => XKind::None,
+			XValue::Unit => XKind::Unit,
+			XValue::Bool(_) => XKind::Bool,
+			XValue::Int(v) => XKind::Int(v.kind()),
+			XValue::Float(v) => XKind::Float(v.kind()),
+			XValue::Str(_) => XKind::Str,
+			XValue::Array(v) => v.kind(),
 		}
 	}
 }
 
-impl Display for Value {
+impl Display for XValue {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		match self {
-			Value::None => write!(f, "(none)"),
-			Value::Unit => write!(f, "()"),
-			Value::Bool(v) => write!(f, "{v}"),
-			Value::Int(v) => write!(f, "{v}"),
-			Value::Float(v) => write!(f, "{v}"),
-			Value::Str(v) => write!(f, "{v}"),
-			Value::Array(v) => write!(f, "{v}"),
+			XValue::None => write!(f, "(none)"),
+			XValue::Unit => write!(f, "()"),
+			XValue::Bool(v) => write!(f, "{v}"),
+			XValue::Int(v) => write!(f, "{v}"),
+			XValue::Float(v) => write!(f, "{v}"),
+			XValue::Str(v) => write!(f, "{v}"),
+			XValue::Array(v) => write!(f, "{v}"),
 		}
 	}
 }
 
-impl Default for Value {
+impl Default for XValue {
 	fn default() -> Self {
-		Value::None
+		XValue::None
 	}
 }

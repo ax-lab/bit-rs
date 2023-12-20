@@ -1,7 +1,7 @@
 use super::*;
 
-impl From<bool> for Value {
+impl From<bool> for XValue {
 	fn from(value: bool) -> Self {
-		Value::Bool(value)
+		XValue::Bool(value)
 	}
 }

@@ -30,8 +30,8 @@ const _: () = {
 	fn thread_safe<T: Send + Sync + UnwindSafe>() {}
 
 	fn assert() {
-		thread_safe::<Data>();
-		thread_safe::<Kind>();
 		thread_safe::<Type>();
+		thread_safe::<XKind>();
+		thread_safe::<XValueCell>();
 	}
 };

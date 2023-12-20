@@ -29,29 +29,29 @@ pub fn get_numeric_result(a: KindId, b: KindId) -> KindId {
 impl KindId {
 	pub fn is_numeric(self) -> bool {
 		match self.as_kind() {
-			Kind::None => false,
-			Kind::Unknown => false,
-			Kind::Any => false,
-			Kind::Unit => false,
-			Kind::Bool => false,
-			Kind::Int(_) => true,
-			Kind::Float(_) => true,
-			Kind::Str => false,
-			Kind::Array(_) => false,
+			XKind::None => false,
+			XKind::Unknown => false,
+			XKind::Any => false,
+			XKind::Unit => false,
+			XKind::Bool => false,
+			XKind::Int(_) => true,
+			XKind::Float(_) => true,
+			XKind::Str => false,
+			XKind::Array(_) => false,
 		}
 	}
 
 	pub fn can_promote_to(self, to: KindId) -> bool {
 		match self.as_kind() {
-			Kind::Int(ta) => {
-				if let Kind::Int(tb) = to.as_kind() {
+			XKind::Int(ta) => {
+				if let XKind::Int(tb) = to.as_kind() {
 					ta.can_promote_to(*tb)
 				} else {
 					false
 				}
 			}
-			Kind::Float(ta) => {
-				if let Kind::Float(tb) = to.as_kind() {
+			XKind::Float(ta) => {
+				if let XKind::Float(tb) = to.as_kind() {
 					tb.bits() >= ta.bits()
 				} else {
 					false
@@ -70,7 +70,7 @@ impl KindId {
 			self
 		} else if self.can_promote_to(expected_output) {
 			expected_output
-		} else if expected_output.as_kind() == &Kind::Int(IntKind::Lit) {
+		} else if expected_output.as_kind() == &XKind::Int(IntKind::Lit) {
 			self
 		} else {
 			KindId::none()

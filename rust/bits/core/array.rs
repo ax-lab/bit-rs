@@ -3,26 +3,26 @@ use super::*;
 #[derive(Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 pub struct Array {
 	kind: KindId,
-	list: Arc<[Data]>,
+	list: Arc<[XValueCell]>,
 }
 
-impl Data {
-	pub fn array<T: IntoIterator<Item = U>, U: Into<Value>>(kind: &Kind, elems: T) -> Self {
+impl XValueCell {
+	pub fn array<T: IntoIterator<Item = U>, U: Into<XValue>>(kind: &XKind, elems: T) -> Self {
 		let array = Array::of(kind, elems);
-		Value::Array(array).into()
+		XValue::Array(array).into()
 	}
 
 	pub fn as_array(&self) -> &Array {
 		match &self.val {
-			Value::Array(array) => &array,
+			XValue::Array(array) => &array,
 			_ => panic!("value is not an array: {self:?}"),
 		}
 	}
 }
 
 impl Array {
-	pub fn of<T: IntoIterator<Item = U>, U: Into<Data>>(kind: &Kind, elems: T) -> Self {
-		let list = elems.into_iter().map(|x| x.into()).collect::<Vec<Data>>();
+	pub fn of<T: IntoIterator<Item = U>, U: Into<XValueCell>>(kind: &XKind, elems: T) -> Self {
+		let list = elems.into_iter().map(|x| x.into()).collect::<Vec<XValueCell>>();
 		for it in list.iter() {
 			if !it.is_kind_of(kind) {
 				panic!("value is not a valid `{kind:?}`: {it:?}")
@@ -30,12 +30,12 @@ impl Array {
 		}
 
 		Self {
-			kind: Kind::array_of(kind).id(),
+			kind: XKind::array_of(kind).id(),
 			list: list.into(),
 		}
 	}
 
-	pub fn kind(&self) -> Kind {
+	pub fn kind(&self) -> XKind {
 		self.kind.into()
 	}
 
@@ -43,7 +43,7 @@ impl Array {
 		self.list.len()
 	}
 
-	pub fn as_slice(&self) -> &[Data] {
+	pub fn as_slice(&self) -> &[XValueCell] {
 		&self.list
 	}
 }
@@ -61,9 +61,9 @@ impl Display for Array {
 	}
 }
 
-impl Kind {
+impl XKind {
 	pub fn array_of(&self) -> Self {
-		Kind::Array(self.as_ref())
+		XKind::Array(self.as_ref())
 	}
 }
 
@@ -73,8 +73,8 @@ mod tests {
 
 	#[test]
 	fn simple_array() {
-		let cell = Data::array(&I64, [1, 2, 3]);
-		assert_eq!(Kind::array_of(&I64), cell.kind());
+		let cell = XValueCell::array(&I64, [1, 2, 3]);
+		assert_eq!(XKind::array_of(&I64), cell.kind());
 		assert_eq!(cell.as_array().as_slice(), [1, 2, 3].map(|x| x.into()));
 	}
 }
