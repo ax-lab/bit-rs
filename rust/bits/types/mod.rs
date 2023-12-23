@@ -1,5 +1,8 @@
 use super::*;
 
+pub mod value;
+pub use value::*;
+
 pub mod repr;
 pub mod symbol;
 

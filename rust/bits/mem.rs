@@ -22,6 +22,30 @@ pub fn print_bytes<T: Write, U: AsRef<str>>(out: &mut T, label: U, bytes: usize)
 	.raise()
 }
 
+pub struct ChunkOf<T> {
+	len: usize,
+	dat: [T; 1],
+}
+
+impl<T> ChunkOf<T> {
+	pub unsafe fn from_ptr(ptr: *const u8) -> &'static Self {
+		unsafe { &*(ptr as *const Self) }
+	}
+
+	pub fn len(&self) -> usize {
+		self.len
+	}
+
+	pub fn as_ptr(&self) -> *const u8 {
+		self as *const Self as *const u8
+	}
+
+	pub fn as_slice(&self) -> &[T] {
+		let ptr = self.dat.as_ptr();
+		unsafe { std::slice::from_raw_parts(ptr, self.len) }
+	}
+}
+
 pub struct Arena {
 	page_size: usize,
 	max_alloc: usize,
@@ -75,6 +99,34 @@ impl Arena {
 			let data = std::slice::from_raw_parts(data, len);
 			std::str::from_utf8_unchecked(data)
 		}
+	}
+
+	pub fn chunk<T: IntoIterator<Item = U>, U>(&self, elems: T) -> &'static ChunkOf<U>
+	where
+		T::IntoIter: ExactSizeIterator,
+	{
+		let elems = elems.into_iter();
+		let count = elems.len();
+
+		let elem_size = std::mem::size_of::<U>();
+		let size = std::mem::size_of::<ChunkOf<U>>() + count * elem_size - elem_size;
+		let align = std::mem::align_of::<ChunkOf<U>>();
+		let layout = Layout::from_size_align(size, align).unwrap();
+		unsafe {
+			let mut chunk = self.alloc(layout).cast::<ChunkOf<U>>();
+			let chunk = chunk.as_mut();
+			chunk.len = count;
+
+			let data = chunk.dat.as_mut_ptr();
+			for (n, it) in elems.enumerate() {
+				data.add(n).write(it);
+			}
+			chunk
+		}
+	}
+
+	pub fn chunk_from_slice<T: Clone>(&self, elems: &[T]) -> &'static ChunkOf<T> {
+		self.chunk(elems.iter().cloned())
 	}
 
 	pub fn slice<T: IntoIterator<Item = U>, U>(&self, elems: T) -> &'static mut [U]
@@ -202,7 +254,7 @@ impl MemPage {
 			{
 				Self::stat().used.fetch_add(size, SyncOrder::Relaxed);
 				let ptr = unsafe {
-					let ptr = data.add(next) as *mut u8;
+					let ptr = data.add(pos) as *mut u8;
 					NonNull::new_unchecked(ptr)
 				};
 				return Some(ptr);
@@ -254,5 +306,13 @@ mod tests {
 
 		let value = arena.slice([1, 2, 3, 4, 5]);
 		assert_eq!(&[1, 2, 3, 4, 5], value);
+	}
+
+	#[test]
+	pub fn arena_chunk() {
+		let arena = Arena::get();
+		let value = arena.chunk([1, 2, 3, 4, 5]);
+		assert_eq!(5, value.len());
+		assert_eq!(&[1, 2, 3, 4, 5], value.as_slice());
 	}
 }

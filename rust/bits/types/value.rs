@@ -19,6 +19,15 @@ impl Value {
 		Self { typ, data: dat }
 	}
 
+	pub fn str<T: AsRef<str>>(str: T) -> Self {
+		let arena = Arena::get();
+		let typ = Type::builtin(Primitive::String);
+		let str = arena.chunk_from_slice(str.as_ref().as_bytes());
+		let ptr = str.as_ptr();
+		let dat = ValueData { ptr };
+		Self { typ, data: dat }
+	}
+
 	pub fn u8(u8: u8) -> Self {
 		let typ = Type::builtin(Primitive::UInt(8));
 		let dat = ValueData { u8 };
@@ -44,6 +53,14 @@ impl Value {
 	pub fn get_u8(&self) -> Option<u8> {
 		if self.typ.is_builtin(Primitive::UInt(8)) {
 			Some(self.data.u8())
+		} else {
+			None
+		}
+	}
+
+	pub fn get_str(&self) -> Option<&'static str> {
+		if self.typ.is_builtin(Primitive::String) {
+			Some(unsafe { self.data.str() })
 		} else {
 			None
 		}
@@ -86,7 +103,7 @@ pub union ValueData {
 	pub isize: isize,
 	pub usize: usize,
 
-	pub ptr: *const (),
+	pub ptr: *const u8,
 	pub typ: Type,
 	pub sym: Symbol,
 }
@@ -171,7 +188,7 @@ impl ValueData {
 	}
 
 	#[inline]
-	pub fn ptr(&self) -> *const () {
+	pub fn ptr(&self) -> *const u8 {
 		unsafe { self.ptr }
 	}
 
@@ -183,6 +200,13 @@ impl ValueData {
 	#[inline]
 	pub unsafe fn as_ref<T>(&self) -> &T {
 		unsafe { &*(self.ptr as *const T) }
+	}
+
+	#[inline]
+	pub unsafe fn str(&self) -> &'static str {
+		let chunk = ChunkOf::<u8>::from_ptr(self.ptr);
+		let bytes = chunk.as_slice();
+		std::str::from_utf8_unchecked(bytes)
 	}
 
 	#[inline]
@@ -225,5 +249,17 @@ mod tests {
 		assert_eq!(Some(69), a.get_u8());
 		assert_eq!("69", format!("{a}"));
 		assert_eq!("69<u8>", format!("{a:?}"));
+	}
+
+	#[test]
+	pub fn builtin_str() {
+		let a = Value::str("abc");
+		assert_eq!(Some("abc"), a.get_str());
+
+		let a = Value::str("123456");
+		assert_eq!(Some("123456"), a.get_str());
+
+		let a = Value::str("");
+		assert_eq!(Some(""), a.get_str());
 	}
 }

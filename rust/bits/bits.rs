@@ -13,9 +13,6 @@ use std::{
 pub mod types;
 pub use types::*;
 
-pub mod values;
-pub use values::*;
-
 pub mod core;
 pub mod input;
 pub mod ops;
@@ -41,7 +38,5 @@ const _: () = {
 	fn assert() {
 		thread_safe::<Type>();
 		thread_safe::<Value>();
-		thread_safe::<XKind>();
-		thread_safe::<XValueCell>();
 	}
 };

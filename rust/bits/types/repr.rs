@@ -1,7 +1,7 @@
 use super::*;
 
 /// Describes the concrete underlying value for a [`Type`].
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum DataRepr {
 	/// Zero sized.
 	Empty,
@@ -43,6 +43,8 @@ pub enum DataRepr {
 pub enum Primitive {
 	/// Boolean
 	Bool,
+	/// Generic string
+	String,
 	/// Fixed size signed int. The zero size is the best native integer.
 	SInt(u8),
 	/// Fixed size unsigned int. The zero size is the best native integer.
@@ -96,31 +98,32 @@ impl Type {
 		}
 	}
 
-	fn fmt_builtin_value(debug: bool, v: Value, f: &mut Formatter) -> std::fmt::Result {
+	fn fmt_builtin_value(debug: bool, val: Value, f: &mut Formatter) -> std::fmt::Result {
 		let _ = debug;
-		if let Some(DataRepr::Builtin(typ)) = v.get_type().repr() {
-			let v = v.data();
+		if let Some(DataRepr::Builtin(typ)) = val.get_type().repr() {
+			let dt = val.data();
 			match typ {
-				Primitive::Bool => write!(f, "{}", v.bool()),
-				Primitive::SInt(8) => write!(f, "{}", v.i8()),
-				Primitive::SInt(16) => write!(f, "{}", v.i16()),
-				Primitive::SInt(32) => write!(f, "{}", v.i32()),
-				Primitive::UInt(8) => write!(f, "{}", v.u8()),
-				Primitive::UInt(16) => write!(f, "{}", v.u16()),
-				Primitive::UInt(32) => write!(f, "{}", v.u32()),
-				Primitive::SInt(0..=64) => write!(f, "{}", v.i64()),
-				Primitive::UInt(0..=64) => write!(f, "{}", v.u64()),
+				Primitive::Bool => write!(f, "{}", dt.bool()),
+				Primitive::String => write!(f, "{:?}", unsafe { dt.str() }),
+				Primitive::SInt(8) => write!(f, "{}", dt.i8()),
+				Primitive::SInt(16) => write!(f, "{}", dt.i16()),
+				Primitive::SInt(32) => write!(f, "{}", dt.i32()),
+				Primitive::UInt(8) => write!(f, "{}", dt.u8()),
+				Primitive::UInt(16) => write!(f, "{}", dt.u16()),
+				Primitive::UInt(32) => write!(f, "{}", dt.u32()),
+				Primitive::SInt(0..=64) => write!(f, "{}", dt.i64()),
+				Primitive::UInt(0..=64) => write!(f, "{}", dt.u64()),
 				Primitive::SInt(n) => todo!("SInt({n}) not implemented"),
 				Primitive::UInt(n) => todo!("UInt({n}) not implemented"),
-				Primitive::UIntSize => write!(f, "{}", v.usize()),
-				Primitive::SIntSize => write!(f, "{}", v.isize()),
-				Primitive::Char => write!(f, "{}", v.char()),
-				Primitive::Float32 => write!(f, "{:?}", v.f32()),
-				Primitive::Float64 => write!(f, "{:?}", v.f64()),
-				Primitive::Pointer => write!(f, "{:?}", v.ptr()),
-				Primitive::UIntPtr => write!(f, "{:?}", v.usize()),
-				Primitive::SIntPtr => write!(f, "{:?}", v.isize()),
-				Primitive::PtrDiff => write!(f, "{:?}", v.isize()),
+				Primitive::UIntSize => write!(f, "{}", dt.usize()),
+				Primitive::SIntSize => write!(f, "{}", dt.isize()),
+				Primitive::Char => write!(f, "{}", dt.char()),
+				Primitive::Float32 => write!(f, "{:?}", dt.f32()),
+				Primitive::Float64 => write!(f, "{:?}", dt.f64()),
+				Primitive::Pointer => write!(f, "{:?}", dt.ptr()),
+				Primitive::UIntPtr => write!(f, "{:?}", dt.usize()),
+				Primitive::SIntPtr => write!(f, "{:?}", dt.isize()),
+				Primitive::PtrDiff => write!(f, "{:?}", dt.isize()),
 			}
 		} else {
 			unreachable!("invalid value")
@@ -132,6 +135,7 @@ impl Debug for Primitive {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
 			Self::Bool => write!(f, "bool"),
+			Self::String => write!(f, "string"),
 			Self::SInt(n) => write!(f, "i{n}"),
 			Self::UInt(n) => write!(f, "u{n}"),
 			Self::SIntSize => write!(f, "isize"),
