@@ -5,6 +5,14 @@ fn main() {
 		eprintln!("\nError: {}\n", err.detailed());
 		std::process::exit(1);
 	}
+
+	let used = Arena::total_used();
+	let size = Arena::total_size();
+	let out = &mut std::io::stdout();
+
+	let _ = print_bytes(out, "\nMemory used: ", used);
+	let _ = print_bytes(out, " out of ", size);
+	println!("\n");
 }
 
 fn run() -> Result<()> {

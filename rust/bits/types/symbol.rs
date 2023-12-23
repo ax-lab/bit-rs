@@ -1,7 +1,4 @@
-use std::{
-	alloc::*,
-	sync::atomic::{AtomicU32, Ordering as SyncOrder},
-};
+use std::alloc::*;
 
 use super::*;
 
