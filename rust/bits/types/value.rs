@@ -258,6 +258,8 @@ mod tests {
 
 		let a = Value::str("123456");
 		assert_eq!(Some("123456"), a.get_str());
+		assert_eq!("\"123456\"<string>", format!("{a:?}"));
+		assert_eq!("123456", format!("{a}"));
 
 		let a = Value::str("");
 		assert_eq!(Some(""), a.get_str());

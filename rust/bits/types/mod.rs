@@ -70,6 +70,10 @@ static UNKNOWN: TypeData = TypeData {
 };
 
 impl Type {
+	pub fn context(&self) -> &Context {
+		todo!()
+	}
+
 	/// Null-value for a type, representing the lack of a type (e.g. void type).
 	pub fn none() -> Type {
 		let data = &NONE;
