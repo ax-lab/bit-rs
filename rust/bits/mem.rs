@@ -232,7 +232,7 @@ impl Store {
 		});
 	}
 
-	fn page(&self) -> &'static Page {
+	fn page(&self) -> &Page {
 		unsafe {
 			let ptr = NonNull::new_unchecked(self.page.load(SyncOrder::Acquire));
 			ptr.as_ref()
