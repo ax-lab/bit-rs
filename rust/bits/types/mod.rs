@@ -128,10 +128,11 @@ impl<'a> TypeContext<'a> {
 	}
 
 	fn store(&'a self, data: TypeData<'a>) -> &'a TypeData<'a> {
+		let store = self.ctx.store();
 		match data.kind {
 			TypeKind::None => &self.none,
 			TypeKind::Unknown => &self.unknown,
-			_ => Box::leak(Box::new(data)), // TODO: use an arena
+			_ => store.store(data),
 		}
 	}
 }
@@ -162,8 +163,14 @@ pub struct Type<'a> {
 }
 
 impl<'a> Type<'a> {
+	#[inline]
 	pub fn context(&self) -> ContextRef<'a> {
 		self.data.ctx
+	}
+
+	#[inline]
+	pub fn store(&self) -> &'a Store {
+		self.context().store()
 	}
 
 	/// Return the invalid type based on the current type.

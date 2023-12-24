@@ -20,9 +20,9 @@ impl<'a> ContextRef<'a> {
 	}
 
 	pub fn str<T: AsRef<str>>(&self, str: T) -> Value<'a> {
-		let arena = Arena::get();
+		let store = self.store();
 		let typ = self.types().builtin(Primitive::String);
-		let str = arena.chunk_from_slice(str.as_ref().as_bytes());
+		let str = store.chunk_from_slice(str.as_ref().as_bytes());
 		let ptr = str.as_ptr();
 		let dat = ValueData { ptr };
 		Value { typ, data: dat }
@@ -36,8 +36,14 @@ impl<'a> ContextRef<'a> {
 }
 
 impl<'a> Value<'a> {
+	#[inline]
 	pub fn context(&self) -> ContextRef<'a> {
 		self.typ.context()
+	}
+
+	#[inline]
+	pub fn store(&self) -> &'a Store {
+		self.context().store()
 	}
 
 	pub fn get_type(&self) -> Type<'a> {

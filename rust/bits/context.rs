@@ -52,12 +52,17 @@ pub struct Context {
 struct InnerContext<'a> {
 	init: AtomicBool,
 	data: ContextData<'a>,
+	store: Store,
 }
 
 impl Context {
 	pub fn new() -> Self {
-		let context = MaybeUninit::<InnerContext>::zeroed();
-		let context = Box::leak(Box::new(unsafe { context.assume_init() }));
+		let context = InnerContext {
+			init: false.into(),
+			store: Store::new(),
+			data: unsafe { MaybeUninit::zeroed().assume_init() },
+		};
+		let context = Box::leak(Box::new(context));
 
 		let ctx = ContextRef { ptr: context };
 		context.data.new(ctx);
@@ -96,10 +101,20 @@ pub struct ContextRef<'a> {
 
 impl<'a> ContextRef<'a> {
 	#[inline]
+	pub fn store(&self) -> &'a Store {
+		&self.inner().store
+	}
+
+	#[inline]
 	fn data(&self) -> &'a ContextData<'a> {
+		&self.inner().data
+	}
+
+	#[inline]
+	fn inner(&self) -> &'a InnerContext<'a> {
 		let ctx = unsafe { &*self.ptr };
 		debug_assert!(ctx.init.load(FLAG_SYNC) == true, "trying to use uninitialized context");
-		&ctx.data
+		ctx
 	}
 }
 

@@ -1,18 +1,25 @@
 use bits::*;
 
+use std::io::Write;
+
 fn main() {
 	if let Err(err) = run() {
 		eprintln!("\nError: {}\n", err.detailed());
 		std::process::exit(1);
 	}
 
-	let used = Arena::total_used();
-	let size = Arena::total_size();
+	let stats = Store::stats();
+	let used = stats.used();
+	let size = stats.size();
+	let max_used = stats.max_used();
+	let max_size = stats.max_size();
 	let out = &mut std::io::stdout();
 
 	let _ = print_bytes(out, "\nMemory used: ", used);
 	let _ = print_bytes(out, " out of ", size);
-	println!("\n");
+	let _ = print_bytes(out, " (max: ", max_used);
+	let _ = print_bytes(out, " / ", max_size);
+	let _ = write!(out, ")\n\n");
 }
 
 fn run() -> Result<()> {
