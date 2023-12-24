@@ -2,10 +2,30 @@ use std::any::type_name;
 
 use super::*;
 
-const FLAG_SYNC: SyncOrder = SyncOrder::Relaxed;
+#[derive(Default)]
+struct ContextData<'a> {
+	types: ContextCell<'a, TypeContext<'a>>,
+}
 
-/// Trait for types that can be used as part of the [`Context`] data.
-pub trait IsContext<'a>: Send + Sync + UnwindSafe {
+impl<'a> ContextData<'a> {
+	fn new(&self, ctx: ContextRef<'a>) {
+		self.types.new(ctx);
+	}
+
+	fn init(&self) {
+		self.types.init();
+	}
+}
+
+impl<'a> ContextRef<'a> {
+	pub fn types(&self) -> &'a TypeContext<'a> {
+		self.data().types.get()
+	}
+}
+
+/// Trait for types that can be used as part of the [`Context`] data while
+/// also storing a reference to the context.
+pub trait IsContext<'a> {
 	/// Return a new instance of the [`IsContext`] with an uninitialized
 	/// reference to the context.
 	///
@@ -18,8 +38,14 @@ pub trait IsContext<'a>: Send + Sync + UnwindSafe {
 	fn init(&mut self) {}
 }
 
-/// Main language context.
+/// Global context for the language.
+///
+/// The [`Context`] owns all data (e.g. types, values) for the compiler
+/// and runtime.
+///
+/// A context can only be used and passed around through a [`ContextRef`].
 pub struct Context {
+	// the lifetime of this data is actually the struct's own lifetime
 	ptr: *const InnerContext<'static>,
 }
 
@@ -42,10 +68,12 @@ impl Context {
 		Self { ptr: context }
 	}
 
+	/// Get a reference to the context.
+	#[inline]
 	pub fn get<'a>(&'a self) -> ContextRef<'a> {
-		unsafe {
-			// SAFETY: change the 'static lifetime to the real self lifetime
-			std::mem::transmute(ContextRef { ptr: self.ptr })
+		ContextRef {
+			// SAFETY: the lifetime of InnerContext is the same as self
+			ptr: unsafe { std::mem::transmute(self.ptr) },
 		}
 	}
 }
@@ -60,7 +88,7 @@ impl Drop for Context {
 	}
 }
 
-/// Context reference.
+/// Stores a [`Context`] reference.
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct ContextRef<'a> {
 	ptr: *const InnerContext<'a>,
@@ -68,37 +96,21 @@ pub struct ContextRef<'a> {
 
 impl<'a> ContextRef<'a> {
 	#[inline]
-	pub fn data(&self) -> &ContextData<'a> {
+	fn data(&self) -> &'a ContextData<'a> {
 		let ctx = unsafe { &*self.ptr };
 		debug_assert!(ctx.init.load(FLAG_SYNC) == true, "trying to use uninitialized context");
 		&ctx.data
 	}
 }
 
-impl<'a> Deref for ContextRef<'a> {
-	type Target = ContextData<'a>;
-
-	fn deref(&self) -> &Self::Target {
-		self.data()
-	}
-}
-
-// SAFETY: we assert that `ContextData` is safe to Send + Sync + UnwindSafe.
-impl<'a> UnwindSafe for ContextRef<'a> {}
-unsafe impl<'a> Send for ContextRef<'a> {}
-unsafe impl<'a> Sync for ContextRef<'a> {}
+const FLAG_SYNC: SyncOrder = SyncOrder::Relaxed;
 
 /// Provides safe initialization of an [`IsContext`] inside a [`ContextData`].
-pub struct ContextCell<'a, T: IsContext<'a>> {
+struct ContextCell<'a, T: IsContext<'a>> {
 	state: AtomicU8,
 	inner: UnsafeCell<MaybeUninit<T>>,
 	tag: PhantomData<&'a ()>,
 }
-
-// SAFETY: the inner `IsContext` is Send + Sync + UnwindSafe by definition.
-impl<'a, T: IsContext<'a>> UnwindSafe for ContextCell<'a, T> {}
-unsafe impl<'a, T: IsContext<'a>> Send for ContextCell<'a, T> {}
-unsafe impl<'a, T: IsContext<'a>> Sync for ContextCell<'a, T> {}
 
 impl<'a, T: IsContext<'a>> Default for ContextCell<'a, T> {
 	fn default() -> Self {
@@ -110,7 +122,7 @@ impl<'a, T: IsContext<'a>> Default for ContextCell<'a, T> {
 	}
 }
 
-impl<'a, T: IsContext<'a>> ContextCell<'a, T> {
+impl<'a, T: IsContext<'a> + 'a> ContextCell<'a, T> {
 	pub fn new(&self, ctx: ContextRef<'a>) {
 		self.state
 			.compare_exchange(0, 1, FLAG_SYNC, FLAG_SYNC)
@@ -141,7 +153,7 @@ impl<'a, T: IsContext<'a>> ContextCell<'a, T> {
 	}
 }
 
-impl<'a, T: IsContext<'a>> Deref for ContextCell<'a, T> {
+impl<'a, T: IsContext<'a> + 'a> Deref for ContextCell<'a, T> {
 	type Target = T;
 
 	fn deref(&self) -> &Self::Target {

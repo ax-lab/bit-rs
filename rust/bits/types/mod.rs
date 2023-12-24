@@ -9,6 +9,133 @@ pub mod symbol;
 pub use repr::*;
 pub use symbol::*;
 
+pub struct TypeContext<'a> {
+	ctx: ContextRef<'a>,
+
+	none: TypeData<'a>,
+	unit: TypeData<'a>,
+	never: TypeData<'a>,
+	any: TypeData<'a>,
+	unknown: TypeData<'a>,
+
+	invalid: TypeMap<'a, Type<'a>>,
+	builtin: TypeMap<'a, Primitive>,
+}
+
+unsafe impl<'a> Send for TypeData<'a> {}
+unsafe impl<'a> Sync for TypeData<'a> {}
+impl<'a> UnwindSafe for TypeData<'a> {}
+
+impl<'a> IsContext<'a> for TypeContext<'a> {
+	fn new(ctx: ContextRef<'a>) -> Self {
+		let none = TypeData {
+			ctx,
+			kind: TypeKind::None,
+			repr: Some(DataRepr::Empty),
+			debug_value: |_, f| write!(f, ""),
+			display_value: None,
+		};
+
+		let unit = TypeData {
+			ctx,
+			kind: TypeKind::Unit,
+			repr: Some(DataRepr::Empty),
+			debug_value: |_, f| write!(f, "()"),
+			display_value: None,
+		};
+
+		let never = TypeData {
+			ctx,
+			kind: TypeKind::Never,
+			repr: None,
+			debug_value: |_, f| write!(f, "(!)"),
+			display_value: None,
+		};
+
+		let any = TypeData {
+			ctx,
+			kind: TypeKind::Any,
+			repr: None,
+			debug_value: |_, f| write!(f, "(any)"),
+			display_value: None,
+		};
+
+		let unknown = TypeData {
+			ctx,
+			kind: TypeKind::Unknown,
+			repr: None,
+			debug_value: |_, f| write!(f, "(???)"),
+			display_value: None,
+		};
+
+		Self {
+			ctx,
+			none,
+			unit,
+			never,
+			any,
+			unknown,
+
+			invalid: TypeMap::new(),
+			builtin: TypeMap::new(),
+		}
+	}
+
+	fn init(&mut self) {}
+}
+
+impl<'a> TypeContext<'a> {
+	/// Null-value for a type, representing the lack of a type (e.g. void type).
+	pub fn none(&'a self) -> Type<'a> {
+		let data = &self.none;
+		Type { data }
+	}
+
+	/// Concrete type containing only a single zero-sized value.
+	pub fn unit(&'a self) -> Type<'a> {
+		let data = &self.unit;
+		Type { data }
+	}
+
+	/// Concrete type containing no possible values. The never type indicates
+	/// is used to indicate a logically impossible value.
+	pub fn never(&'a self) -> Type<'a> {
+		let data = &self.never;
+		Type { data }
+	}
+
+	/// Concrete type able to hold any possible value.
+	pub fn any(&'a self) -> Type<'a> {
+		let data = &self.any;
+		Type { data }
+	}
+
+	/// Abstract unknown type.
+	pub fn unknown(&'a self) -> Type<'a> {
+		let data = &self.unknown;
+		Type { data }
+	}
+
+	/// Empty invalid type. An invalid type indicates a type that is not valid
+	/// at runtime, but can be returned for error handling.
+	///
+	/// Any number of non-empty invalid types are possible. An invalid type can
+	/// be derived from an invalid type or by invalidating a valid type.
+	///
+	/// Operations with invalid types should always result in an invalid type.
+	pub fn invalid(&'a self) -> Type {
+		self.none().to_invalid()
+	}
+
+	fn store(&'a self, data: TypeData<'a>) -> &'a TypeData<'a> {
+		match data.kind {
+			TypeKind::None => &self.none,
+			TypeKind::Unknown => &self.unknown,
+			_ => Box::leak(Box::new(data)), // TODO: use an arena
+		}
+	}
+}
+
 /// Type descriptor for any type.
 ///
 /// Types can be concrete, abstract, parametric, etc. This can also represent
@@ -30,90 +157,13 @@ pub use symbol::*;
 /// Named types are also supported through abstract symbols. The textual
 /// representation of a symbol (if any) is left to the environment.
 #[derive(Copy, Clone)]
-pub struct Type {
-	data: &'static TypeData,
+pub struct Type<'a> {
+	data: &'a TypeData<'a>,
 }
 
-static NONE: TypeData = TypeData {
-	kind: TypeKind::None,
-	repr: Some(DataRepr::Empty),
-	debug_value: |_, f| write!(f, ""),
-	display_value: None,
-};
-
-static UNIT: TypeData = TypeData {
-	kind: TypeKind::Unit,
-	repr: Some(DataRepr::Empty),
-	debug_value: |_, f| write!(f, "()"),
-	display_value: None,
-};
-
-static NEVER: TypeData = TypeData {
-	kind: TypeKind::Never,
-	repr: None,
-	debug_value: |_, f| write!(f, "(!)"),
-	display_value: None,
-};
-
-static ANY: TypeData = TypeData {
-	kind: TypeKind::Any,
-	repr: None,
-	debug_value: |_, f| write!(f, "(any)"),
-	display_value: None,
-};
-
-static UNKNOWN: TypeData = TypeData {
-	kind: TypeKind::Unknown,
-	repr: None,
-	debug_value: |_, f| write!(f, "(???)"),
-	display_value: None,
-};
-
-impl Type {
-	pub fn context(&self) -> &Context {
-		todo!()
-	}
-
-	/// Null-value for a type, representing the lack of a type (e.g. void type).
-	pub fn none() -> Type {
-		let data = &NONE;
-		Type { data }
-	}
-
-	/// Concrete type containing only a single zero-sized value.
-	pub fn unit() -> Type {
-		let data = &UNIT;
-		Type { data }
-	}
-
-	/// Concrete type containing no possible values. The never type indicates
-	/// is used to indicate a logically impossible value.
-	pub fn never() -> Type {
-		let data = &NEVER;
-		Type { data }
-	}
-
-	/// Concrete type able to hold any possible value.
-	pub fn any() -> Type {
-		let data = &ANY;
-		Type { data }
-	}
-
-	/// Abstract unknown type.
-	pub fn unknown() -> Type {
-		let data = &UNKNOWN;
-		Type { data }
-	}
-
-	/// Empty invalid type. An invalid type indicates a type that is not valid
-	/// at runtime, but can be returned for error handling.
-	///
-	/// Any number of non-empty invalid types are possible. An invalid type can
-	/// be derived from an invalid type or by invalidating a valid type.
-	///
-	/// Operations with invalid types should always result in an invalid type.
-	pub fn invalid() -> Type {
-		Type::none().to_invalid()
+impl<'a> Type<'a> {
+	pub fn context(&self) -> ContextRef<'a> {
+		self.data.ctx
 	}
 
 	/// Return the invalid type based on the current type.
@@ -124,52 +174,56 @@ impl Type {
 	/// For an invalid type, return the type itself.
 	///
 	/// This will always return the same type when called on the same base type.
-	pub fn to_invalid(&self) -> Type {
-		static INVALID: TypeMap<Type> = TypeMap::new();
+	pub fn to_invalid(self) -> Type<'a> {
 		if let TypeKind::Invalid(..) = self.data.kind {
-			*self
+			self
 		} else {
-			INVALID.get(self, |typ| TypeData {
-				kind: TypeKind::Invalid(typ),
-				repr: None,
-				debug_value: |_, f| write!(f, "(!!!)"),
-				display_value: None,
+			let types = self.types();
+			types.invalid.get(&self, |typ| {
+				let data = TypeData {
+					ctx: self.data.ctx,
+					kind: TypeKind::Invalid(typ),
+					repr: None,
+					debug_value: |_, f| write!(f, "(!!!)"),
+					display_value: None,
+				};
+				types.store(data)
 			})
 		}
 	}
 
 	/// Is this type valid?
-	pub fn is_valid(&self) -> bool {
+	pub fn is_valid(self) -> bool {
 		!self.is_invalid()
 	}
 
 	/// Is this type an invalid type?
-	pub fn is_invalid(&self) -> bool {
+	pub fn is_invalid(self) -> bool {
 		matches!(self.data.kind, TypeKind::Invalid(..))
 	}
 
 	/// Return a valid type either by unwrapping an invalid type or returning
 	/// self if it is already valid.
-	pub fn get_valid(&self) -> Type {
+	pub fn get_valid(self) -> Type<'a> {
 		if let TypeKind::Invalid(typ) = self.data.kind {
 			typ
 		} else {
-			*self
+			self
 		}
 	}
 
 	/// Is this the none type?
-	pub fn is_none(&self) -> bool {
-		*self == Type::none()
+	pub fn is_none(self) -> bool {
+		self == self.types().none()
 	}
 
 	/// Is this the unknown type?
-	pub fn is_unknown(&self) -> bool {
-		*self == Type::unknown()
+	pub fn is_unknown(self) -> bool {
+		self == self.types().unknown()
 	}
 
 	/// A proper type is not none, unknown, or invalid.
-	pub fn is_proper(&self) -> bool {
+	pub fn is_proper(self) -> bool {
 		!(self.is_none() || self.is_invalid() || self.is_unknown())
 	}
 
@@ -180,14 +234,14 @@ impl Type {
 	/// unique will return the same type.
 	///
 	/// The returned unique type is only equal to itself.
-	pub fn to_unique(&self) -> Type {
+	pub fn to_unique(self) -> Type<'a> {
 		let data = self.data.clone();
-		let data = data.store();
+		let data = self.types().store(data);
 		Type { data }
 	}
 
 	/// Underlying data representation for types that have it.
-	pub fn repr(&self) -> Option<&'static DataRepr> {
+	pub fn repr(&self) -> Option<&'a DataRepr<'a>> {
 		self.data.repr.as_ref()
 	}
 
@@ -213,7 +267,7 @@ impl Type {
 	}
 
 	#[inline]
-	fn as_ptr(&self) -> *const TypeData {
+	fn as_ptr(self) -> *const TypeData<'a> {
 		self.data.as_ptr()
 	}
 
@@ -228,74 +282,84 @@ impl Type {
 			self.debug_value(v, f)
 		}
 	}
+
+	#[inline]
+	pub fn types(&self) -> &'a TypeContext<'a> {
+		self.data.ctx.types()
+	}
 }
 
-impl Eq for Type {}
+impl<'a> Eq for Type<'a> {}
 
-impl PartialEq for Type {
+impl<'a> PartialEq for Type<'a> {
 	fn eq(&self, other: &Self) -> bool {
 		self.as_ptr() == other.as_ptr()
 	}
 }
 
-impl Hash for Type {
+impl<'a> Hash for Type<'a> {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		self.as_ptr().hash(state)
 	}
 }
 
-impl Debug for Type {
+impl<'a> Debug for Type<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{:?}", self.data)
 	}
 }
 
-impl Display for Type {
+impl<'a> Display for Type<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{}", self.data)
 	}
 }
 
-impl Ord for Type {
+impl<'a> Ord for Type<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.data.cmp(&other.data)
 	}
 }
 
-impl PartialOrd for Type {
+impl<'a> PartialOrd for Type<'a> {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+#[derive(Clone, Eq, PartialEq)]
+struct TypeData<'a> {
+	ctx: ContextRef<'a>,
+	kind: TypeKind<'a>,
+	repr: Option<DataRepr<'a>>,
+	debug_value: fn(Value, &mut Formatter) -> std::fmt::Result,
+	display_value: Option<fn(Value, &mut Formatter) -> std::fmt::Result>,
+}
+
+impl<'a> Ord for TypeData<'a> {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.kind.cmp(&other.kind)
+	}
+}
+
+impl<'a> PartialOrd for TypeData<'a> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
-struct TypeData {
-	kind: TypeKind,
-	repr: Option<DataRepr>,
-	debug_value: fn(Value, &mut Formatter) -> std::fmt::Result,
-	display_value: Option<fn(Value, &mut Formatter) -> std::fmt::Result>,
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
-enum TypeKind {
+enum TypeKind<'a> {
 	None,
 	Unit,
 	Never,
 	Any,
 	Unknown,
-	Invalid(Type),
+	Invalid(Type<'a>),
 	Builtin(Primitive),
 }
 
-impl TypeData {
-	fn store(self) -> &'static Self {
-		match self.kind {
-			TypeKind::None => &NONE,
-			TypeKind::Unknown => &UNKNOWN,
-			_ => Box::leak(Box::new(self)),
-		}
-	}
-
+impl<'a> TypeData<'a> {
 	fn as_ptr(&self) -> *const Self {
 		self
 	}
@@ -305,32 +369,33 @@ impl TypeData {
 	}
 }
 
-impl Debug for TypeData {
+impl<'a> Debug for TypeData<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let mut ptr = false;
+		let types = self.ctx.types();
 		match self.kind {
 			TypeKind::None => {
 				write!(f, "")?;
-				ptr = self.as_ptr() != NONE.as_ptr();
+				ptr = self.as_ptr() != types.none.as_ptr();
 			}
 			TypeKind::Unit => {
 				write!(f, "()")?;
-				ptr = self.as_ptr() != UNIT.as_ptr();
+				ptr = self.as_ptr() != types.unit.as_ptr();
 			}
 			TypeKind::Never => {
 				write!(f, "!")?;
-				ptr = self.as_ptr() != NEVER.as_ptr();
+				ptr = self.as_ptr() != types.never.as_ptr();
 			}
 			TypeKind::Any => {
 				write!(f, "any")?;
-				ptr = self.as_ptr() != ANY.as_ptr();
+				ptr = self.as_ptr() != types.any.as_ptr();
 			}
 			TypeKind::Unknown => {
 				write!(f, "???")?;
-				ptr = self.as_ptr() != UNKNOWN.as_ptr();
+				ptr = self.as_ptr() != types.unknown.as_ptr();
 			}
 			TypeKind::Invalid(typ) => {
-				if typ != Type::none() {
+				if typ != types.none() {
 					write!(f, "!!!({typ:?}")?;
 				} else {
 					write!(f, "!!!")?;
@@ -338,7 +403,7 @@ impl Debug for TypeData {
 			}
 			TypeKind::Builtin(typ) => {
 				write!(f, "{typ:?}")?;
-				ptr = self.as_ptr() != Type::builtin(typ).as_ptr();
+				ptr = self.as_ptr() != types.builtin(typ).as_ptr();
 			}
 		}
 		if ptr {
@@ -348,53 +413,54 @@ impl Debug for TypeData {
 	}
 }
 
-impl Display for TypeData {
+impl<'a> Display for TypeData<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{self:?}")
 	}
 }
 
-struct TypeMap<T: Eq + Hash + Clone> {
-	map: OnceLock<RwLock<HashMap<T, &'static TypeData>>>,
+struct TypeMap<'a, T: Eq + Hash + Clone> {
+	map: RwLock<HashMap<T, &'a TypeData<'a>>>,
 }
 
-impl<T: Eq + Hash + Clone> TypeMap<T> {
-	pub const fn new() -> Self {
-		Self { map: OnceLock::new() }
+impl<'a, T: Eq + Hash + Clone> TypeMap<'a, T> {
+	pub fn new() -> Self {
+		Self {
+			map: Default::default(),
+		}
 	}
 
-	pub fn get<F: Fn(T) -> TypeData>(&self, key: &T, init: F) -> Type {
-		let map = self.map.get_or_init(|| Default::default());
-		if let Some(data) = map.read().unwrap().get(key).copied() {
+	pub fn get<F: Fn(T) -> &'a TypeData<'a>>(&self, key: &T, init: F) -> Type<'a> {
+		if let Some(data) = self.map.read().unwrap().get(key).copied() {
 			return Type { data };
 		}
 
-		let mut map = map.write().unwrap();
-		let entry = map.entry(key.clone()).or_insert_with(|| {
-			let data = init(key.clone());
-			data.store()
-		});
+		let mut map = self.map.write().unwrap();
+		let entry = map.entry(key.clone()).or_insert_with(|| init(key.clone()));
 		Type { data: *entry }
 	}
 }
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
 	fn basic_types() {
-		assert_eq!(Type::none(), Type::none());
-		assert_eq!(Type::unit(), Type::unit());
-		assert_eq!(Type::never(), Type::never());
-		assert_eq!(Type::any(), Type::any());
-		assert_eq!(Type::unknown(), Type::unknown());
-		assert_eq!(Type::invalid(), Type::invalid());
+		let ctx = Context::new();
+		let types = ctx.get().types();
+		assert_eq!(types.none(), types.none());
+		assert_eq!(types.unit(), types.unit());
+		assert_eq!(types.never(), types.never());
+		assert_eq!(types.any(), types.any());
+		assert_eq!(types.unknown(), types.unknown());
+		assert_eq!(types.invalid(), types.invalid());
 
-		assert!(Type::invalid().is_invalid());
-		assert!(Type::unit().to_invalid().is_invalid());
+		assert!(types.invalid().is_invalid());
+		assert!(types.unit().to_invalid().is_invalid());
 
-		assert_ne!(Type::unit().to_unique(), Type::unit());
-		assert_eq!(Type::none().to_unique(), Type::none());
-		assert_eq!(Type::unknown().to_unique(), Type::unknown());
+		assert_ne!(types.unit().to_unique(), types.unit());
+		assert_eq!(types.none().to_unique(), types.none());
+		assert_eq!(types.unknown().to_unique(), types.unknown());
 	}
 }

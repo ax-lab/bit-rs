@@ -2,7 +2,7 @@ use super::*;
 
 /// Describes the concrete underlying value for a [`Type`].
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum DataRepr {
+pub enum DataRepr<'a> {
 	/// Zero sized.
 	Empty,
 	/// A builtin primitive value.
@@ -18,24 +18,24 @@ pub enum DataRepr {
 	/// Default string representation.
 	String,
 	/// Pointer to an specific type.
-	Ptr(Type),
+	Ptr(Type<'a>),
 	/// Reference to an specific type. A reference is basically a pointer that
 	/// can never be null.
-	Ref(Type),
+	Ref(Type<'a>),
 	/// A value holding a type reference.
 	Type,
 	/// A value holding a reference for a specific base type and its sub-types.
-	TypeOf(Type),
+	TypeOf(Type<'a>),
 	/// Plain function value.
-	Func(Type),
+	Func(Type<'a>),
 	/// Record composite.
-	Record(&'static [Type]),
+	Record(&'a [Type<'a>]),
 	/// Untagged union type.
-	Union(&'static [Type]),
+	Union(&'a [Type<'a>]),
 	/// Fixed array.
-	Array(usize, Type),
+	Array(usize, Type<'a>),
 	/// Slice type.
-	Slice(Type),
+	Slice(Type<'a>),
 }
 
 /// Primitive data types.
@@ -75,12 +75,7 @@ pub enum Primitive {
 	PtrDiff,
 }
 
-impl Type {
-	pub fn builtin(typ: Primitive) -> Self {
-		static MAP: TypeMap<Primitive> = TypeMap::new();
-		MAP.get(&typ, |typ| Self::from_primitive(typ))
-	}
-
+impl<'a> Type<'a> {
 	pub fn is_builtin(&self, typ: Primitive) -> bool {
 		if let Some(&DataRepr::Builtin(repr)) = self.repr() {
 			repr == typ
@@ -88,9 +83,16 @@ impl Type {
 			false
 		}
 	}
+}
 
-	fn from_primitive(typ: Primitive) -> TypeData {
+impl<'a> TypeContext<'a> {
+	pub fn builtin(&'a self, typ: Primitive) -> Type<'a> {
+		self.builtin.get(&typ, |typ| self.store(self.from_primitive(typ)))
+	}
+
+	fn from_primitive(&self, typ: Primitive) -> TypeData<'a> {
 		TypeData {
+			ctx: self.ctx,
 			kind: TypeKind::Builtin(typ),
 			repr: Some(DataRepr::Builtin(typ)),
 			debug_value: |v, f| Self::fmt_builtin_value(true, v, f),
@@ -157,8 +159,10 @@ mod tests {
 
 	#[test]
 	pub fn builtin_types() {
-		let u32 = Type::builtin(Primitive::UInt(32));
-		assert_eq!(u32, Type::builtin(Primitive::UInt(32)));
-		assert_ne!(u32, Type::builtin(Primitive::UInt(64)));
+		let ctx = Context::new();
+		let types = ctx.get().types();
+		let u32 = types.builtin(Primitive::UInt(32));
+		assert_eq!(u32, types.builtin(Primitive::UInt(32)));
+		assert_ne!(u32, types.builtin(Primitive::UInt(64)));
 	}
 }
