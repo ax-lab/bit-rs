@@ -20,7 +20,7 @@ impl<'a> ContextRef<'a> {
 	}
 
 	pub fn str<T: AsRef<str>>(&self, str: T) -> Value<'a> {
-		let store = self.store();
+		let store = self.arena();
 		let typ = self.types().builtin(Primitive::String);
 		let str = store.chunk_from_slice(str.as_ref().as_bytes());
 		let ptr = str.as_ptr();
@@ -43,7 +43,7 @@ impl<'a> Value<'a> {
 
 	#[inline]
 	pub fn store(&self) -> &'a Store {
-		self.context().store()
+		self.context().arena()
 	}
 
 	pub fn get_type(&self) -> Type<'a> {
@@ -275,7 +275,6 @@ mod tests {
 		let a = ctx.str("123456");
 		assert_eq!(Some("123456"), a.get_str());
 		assert_eq!("\"123456\"<string>", format!("{a:?}"));
-		//assert_eq!("123456", format!("{a}")); // TODO: enable
 
 		let a = ctx.str("");
 		assert_eq!(Some(""), a.get_str());

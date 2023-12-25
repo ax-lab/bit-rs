@@ -153,7 +153,7 @@ impl Store {
 		}
 	}
 
-	pub fn chunk<T: IntoIterator<Item = U>, U>(&self, elems: T) -> &ChunkOf<U>
+	pub fn chunk<T: IntoIterator<Item = U>, U: Copy>(&self, elems: T) -> &ChunkOf<U>
 	where
 		T::IntoIter: ExactSizeIterator,
 	{
@@ -177,8 +177,8 @@ impl Store {
 		}
 	}
 
-	pub fn chunk_from_slice<T: Clone>(&self, elems: &[T]) -> &ChunkOf<T> {
-		self.chunk(elems.iter().cloned())
+	pub fn chunk_from_slice<T: Copy>(&self, elems: &[T]) -> &ChunkOf<T> {
+		self.chunk(elems.iter().copied())
 	}
 
 	pub fn alloc(&self, layout: Layout) -> NonNull<u8> {

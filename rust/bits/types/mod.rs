@@ -33,7 +33,6 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::None,
 			repr: Some(DataRepr::Empty),
 			debug_value: |_, f| write!(f, ""),
-			display_value: None,
 		};
 
 		let unit = TypeData {
@@ -41,7 +40,6 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::Unit,
 			repr: Some(DataRepr::Empty),
 			debug_value: |_, f| write!(f, "()"),
-			display_value: None,
 		};
 
 		let never = TypeData {
@@ -49,7 +47,6 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::Never,
 			repr: None,
 			debug_value: |_, f| write!(f, "(!)"),
-			display_value: None,
 		};
 
 		let any = TypeData {
@@ -57,7 +54,6 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::Any,
 			repr: None,
 			debug_value: |_, f| write!(f, "(any)"),
-			display_value: None,
 		};
 
 		let unknown = TypeData {
@@ -65,7 +61,6 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::Unknown,
 			repr: None,
 			debug_value: |_, f| write!(f, "(???)"),
-			display_value: None,
 		};
 
 		Self {
@@ -116,6 +111,11 @@ impl<'a> TypeContext<'a> {
 		Type { data }
 	}
 
+	/// Default string type.
+	pub fn str(&'a self) -> Type<'a> {
+		self.builtin(Primitive::String)
+	}
+
 	/// Empty invalid type. An invalid type indicates a type that is not valid
 	/// at runtime, but can be returned for error handling.
 	///
@@ -128,7 +128,7 @@ impl<'a> TypeContext<'a> {
 	}
 
 	fn store(&'a self, data: TypeData<'a>) -> &'a TypeData<'a> {
-		let store = self.ctx.store();
+		let store = self.ctx.arena();
 		match data.kind {
 			TypeKind::None => &self.none,
 			TypeKind::Unknown => &self.unknown,
@@ -170,7 +170,7 @@ impl<'a> Type<'a> {
 
 	#[inline]
 	pub fn store(&self) -> &'a Store {
-		self.context().store()
+		self.context().arena()
 	}
 
 	/// Return the invalid type based on the current type.
@@ -192,7 +192,6 @@ impl<'a> Type<'a> {
 					kind: TypeKind::Invalid(typ),
 					repr: None,
 					debug_value: |_, f| write!(f, "(!!!)"),
-					display_value: None,
 				};
 				types.store(data)
 			})
@@ -253,23 +252,23 @@ impl<'a> Type<'a> {
 	}
 
 	/// Return the sum of this type with the given type.
-	pub fn sum(&self, _other: Type) -> Type {
+	pub fn sum(&self, _other: Type<'a>) -> Type<'a> {
 		todo!()
 	}
 
 	/// Return the intersection of this type with the given type.
-	pub fn intersect(&self, _other: Type) -> Type {
+	pub fn intersect(&self, _other: Type<'a>) -> Type<'a> {
 		todo!()
 	}
 
 	/// Return the type resulting from subtracting the given type from the
 	/// current type.
-	pub fn subtract(&self, _other: Type) -> Type {
+	pub fn subtract(&self, _other: Type<'a>) -> Type<'a> {
 		todo!()
 	}
 
 	/// Is the current type a superset of the given type?
-	pub fn contains(&self, _other: Type) -> bool {
+	pub fn contains(&self, _other: Type<'a>) -> bool {
 		todo!()
 	}
 
@@ -278,13 +277,18 @@ impl<'a> Type<'a> {
 		self.data.as_ptr()
 	}
 
-	pub fn debug_value(&self, v: Value, f: &mut Formatter) -> std::fmt::Result {
+	pub fn debug_value(&self, v: Value<'a>, f: &mut Formatter) -> std::fmt::Result {
 		(self.data.debug_value)(v, f)
 	}
 
-	pub fn display_value(&self, v: Value, f: &mut Formatter) -> std::fmt::Result {
-		if let Some(display) = self.data.display_value {
-			(display)(v, f)
+	pub fn display_value(&self, v: Value<'a>, f: &mut Formatter) -> std::fmt::Result {
+		let str = self.context().types().str();
+		let to_string = self.context().ops().get(OpKey(OpKind::Core, Symbol::str("to_string")));
+		if let Some(op) = to_string.get_unary((*self, str)) {
+			let ctx = self.context();
+			let val = op.eval(ctx, v).map_err(|_| std::fmt::Error)?;
+			let val = val.get_str().expect("invalid return in `to_string`");
+			write!(f, "{val}")
 		} else {
 			self.debug_value(v, f)
 		}
@@ -340,7 +344,6 @@ struct TypeData<'a> {
 	kind: TypeKind<'a>,
 	repr: Option<DataRepr<'a>>,
 	debug_value: fn(Value, &mut Formatter) -> std::fmt::Result,
-	display_value: Option<fn(Value, &mut Formatter) -> std::fmt::Result>,
 }
 
 impl<'a> Ord for TypeData<'a> {

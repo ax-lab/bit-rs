@@ -5,21 +5,28 @@ use super::*;
 #[derive(Default)]
 struct ContextData<'a> {
 	types: ContextCell<'a, TypeContext<'a>>,
+	ops: ContextCell<'a, OpContext<'a>>,
 }
 
 impl<'a> ContextData<'a> {
 	fn new(&self, ctx: ContextRef<'a>) {
 		self.types.new(ctx);
+		self.ops.new(ctx);
 	}
 
 	fn init(&self) {
 		self.types.init();
+		self.ops.init();
 	}
 }
 
 impl<'a> ContextRef<'a> {
 	pub fn types(&self) -> &'a TypeContext<'a> {
 		self.data().types.get()
+	}
+
+	pub fn ops(&self) -> &'a OpContext<'a> {
+		self.data().ops.get()
 	}
 }
 
@@ -52,14 +59,14 @@ pub struct Context {
 struct InnerContext<'a> {
 	init: AtomicBool,
 	data: ContextData<'a>,
-	store: Store,
+	arena: Store,
 }
 
 impl Context {
 	pub fn new() -> Self {
 		let context = InnerContext {
 			init: false.into(),
-			store: Store::new(),
+			arena: Store::new(),
 			data: unsafe { MaybeUninit::zeroed().assume_init() },
 		};
 		let context = Box::leak(Box::new(context));
@@ -101,8 +108,8 @@ pub struct ContextRef<'a> {
 
 impl<'a> ContextRef<'a> {
 	#[inline]
-	pub fn store(&self) -> &'a Store {
-		&self.inner().store
+	pub fn arena(&self) -> &'a Store {
+		&self.inner().arena
 	}
 
 	#[inline]

@@ -2,12 +2,12 @@ use super::*;
 
 pub struct OpAdd {}
 
-impl Operator for OpAdd {
+impl OperatorX for OpAdd {
 	fn arity(&self) -> Arity {
 		Arity::exact(2)
 	}
 
-	fn match_args(&self, op: OpArgQuery) -> OpMatch {
+	fn match_args(&self, op: OpArgQueryX) -> OpMatch {
 		let mut output = op.input.first().copied().unwrap_or_else(|| KindId::none());
 		for &it in op.input.iter().skip(1) {
 			output = get_numeric_result(output, it);

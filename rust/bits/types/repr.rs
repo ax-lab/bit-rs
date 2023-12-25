@@ -95,13 +95,11 @@ impl<'a> TypeContext<'a> {
 			ctx: self.ctx,
 			kind: TypeKind::Builtin(typ),
 			repr: Some(DataRepr::Builtin(typ)),
-			debug_value: |v, f| Self::fmt_builtin_value(true, v, f),
-			display_value: Some(|v, f| Self::fmt_builtin_value(false, v, f)),
+			debug_value: |v, f| Self::debug_builtin(v, f),
 		}
 	}
 
-	fn fmt_builtin_value(debug: bool, val: Value, f: &mut Formatter) -> std::fmt::Result {
-		let _ = debug;
+	fn debug_builtin(val: Value, f: &mut Formatter) -> std::fmt::Result {
 		if let Some(DataRepr::Builtin(typ)) = val.get_type().repr() {
 			let dt = val.data();
 			match typ {
