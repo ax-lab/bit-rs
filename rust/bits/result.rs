@@ -184,21 +184,3 @@ impl Debug for ErrorInfo {
 		(self.debug_fn)(&self.value, f)
 	}
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	#[test]
-	fn error_values() -> Result<()> {
-		let err: Error = "error A".to_error();
-		assert_eq!("error A", format!("{err}"));
-		assert_eq!("Error(\"error A\")", format!("{err:?}"));
-
-		let err: Error = XValueCell::new(123).to_error();
-		assert!(err.is::<XValueCell>());
-		assert_eq!(Some(&123.into()), err.get::<XValueCell>());
-
-		Ok(())
-	}
-}

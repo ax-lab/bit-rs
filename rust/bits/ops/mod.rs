@@ -2,13 +2,9 @@ use super::*;
 
 pub mod arity;
 pub mod matching;
-pub mod numeric;
 
 pub use arity::*;
 pub use matching::*;
-pub use numeric::*;
-
-pub mod add;
 
 pub struct OpContext<'a> {
 	ctx: ContextRef<'a>,
@@ -173,111 +169,6 @@ impl<'a> Unary<'a> {
 			let typ = self.data.typ;
 			err!("eval not defined for {key:?}<{typ:?}>")
 		}
-	}
-}
-
-pub trait OperatorX {
-	fn arity(&self) -> Arity;
-
-	fn match_args(&self, op: OpArgQueryX) -> OpMatch;
-
-	fn as_nullary(&self) -> Option<&dyn OpNullaryX> {
-		None
-	}
-
-	fn as_unary(&self) -> Option<&dyn OpUnaryX> {
-		None
-	}
-
-	fn as_binary(&self) -> Option<&dyn OpBinaryX> {
-		None
-	}
-
-	fn as_ternary(&self) -> Option<&dyn OpTernaryX> {
-		None
-	}
-
-	fn as_variadic(&self) -> Option<&dyn OpVariadicX> {
-		None
-	}
-}
-
-pub trait OpNullaryX: OperatorX {
-	fn eval(&self) -> Result<XValueCell>;
-}
-
-pub trait OpUnaryX: OperatorX {
-	fn eval(&self, arg: XValueCell) -> Result<XValueCell>;
-}
-
-pub trait OpBinaryX: OperatorX {
-	fn eval(&self, lhs: XValueCell, rhs: XValueCell) -> Result<XValueCell>;
-}
-
-pub trait OpTernaryX: OperatorX {
-	fn eval(&self, a: XValueCell, b: XValueCell, c: XValueCell) -> Result<XValueCell>;
-}
-
-pub trait OpVariadicX: OperatorX {
-	fn eval(&self, args: &[XValueCell]) -> Result<XValueCell>;
-}
-
-pub struct OpTableX {
-	ops: Vec<Arc<dyn OperatorX>>,
-}
-
-impl OpTableX {
-	pub fn query(&self, _query: &OpQueryX, _output: &mut OpResultX) {
-		todo!()
-	}
-
-	pub fn add(&mut self, op: Arc<dyn OperatorX>) {
-		self.ops.push(op);
-	}
-}
-
-#[derive(Default)]
-pub struct OpArgQueryX {
-	output: KindId,
-	input: Vec<KindId>,
-}
-
-#[derive(Default)]
-pub struct OpQueryX {
-	arity: Arity,
-	args: OpArgQueryX,
-}
-
-impl OpQueryX {
-	pub fn new() -> Self {
-		Self::default()
-	}
-
-	pub fn with_arity(&mut self, arity: Arity) {
-		self.arity = arity;
-	}
-
-	pub fn with_output(&mut self, kind: KindId) {
-		self.args.output = kind;
-	}
-
-	pub fn with_input(&mut self, index: usize, kind: KindId) {
-		while self.args.input.len() <= index {
-			self.args.input.push(KindId::unknown());
-		}
-		self.args.input[index] = kind;
-	}
-}
-
-pub struct OpResultX {}
-
-impl OpResultX {
-	pub fn len(&self) -> usize {
-		todo!()
-	}
-
-	pub fn get(&self, _index: usize) -> Option<Arc<dyn OperatorX>> {
-		todo!()
 	}
 }
 

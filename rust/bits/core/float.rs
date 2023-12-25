@@ -117,12 +117,6 @@ macro_rules! from_float {
 				Float::$id(value)
 			}
 		}
-
-		impl From<$t> for XValue {
-			fn from(value: $t) -> XValue {
-				XValue::Float(value.into())
-			}
-		}
 	};
 }
 

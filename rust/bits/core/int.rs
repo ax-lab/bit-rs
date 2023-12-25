@@ -1,14 +1,5 @@
 use super::*;
 
-pub const I8: XKind = XKind::Int(IntKind::I8);
-pub const U8: XKind = XKind::Int(IntKind::U8);
-pub const I16: XKind = XKind::Int(IntKind::I16);
-pub const I32: XKind = XKind::Int(IntKind::I32);
-pub const I64: XKind = XKind::Int(IntKind::I64);
-pub const U16: XKind = XKind::Int(IntKind::U16);
-pub const U32: XKind = XKind::Int(IntKind::U32);
-pub const U64: XKind = XKind::Int(IntKind::U64);
-
 #[derive(Copy, Clone, Debug)]
 pub enum Int {
 	I8(i8),
@@ -238,12 +229,6 @@ macro_rules! from_int {
 				Int::$id(value)
 			}
 		}
-
-		impl From<$t> for XValue {
-			fn from(value: $t) -> XValue {
-				XValue::Int(value.into())
-			}
-		}
 	};
 }
 
@@ -259,12 +244,6 @@ from_int!(u64, U64);
 impl From<usize> for Int {
 	fn from(value: usize) -> Self {
 		Int::U64(value as u64)
-	}
-}
-
-impl From<usize> for XValue {
-	fn from(value: usize) -> Self {
-		XValue::Int(value.into())
 	}
 }
 
