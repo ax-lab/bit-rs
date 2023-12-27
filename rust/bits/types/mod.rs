@@ -1,8 +1,5 @@
 use super::*;
 
-pub mod value;
-pub use value::*;
-
 pub mod repr;
 pub mod symbol;
 
@@ -31,36 +28,26 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 		let none = TypeData {
 			ctx,
 			kind: TypeKind::None,
-			repr: Some(DataRepr::Empty),
-			debug_value: |_, f| write!(f, ""),
 		};
 
 		let unit = TypeData {
 			ctx,
 			kind: TypeKind::Unit,
-			repr: Some(DataRepr::Empty),
-			debug_value: |_, f| write!(f, "()"),
 		};
 
 		let never = TypeData {
 			ctx,
 			kind: TypeKind::Never,
-			repr: None,
-			debug_value: |_, f| write!(f, "(!)"),
 		};
 
 		let any = TypeData {
 			ctx,
 			kind: TypeKind::Any,
-			repr: None,
-			debug_value: |_, f| write!(f, "(any)"),
 		};
 
 		let unknown = TypeData {
 			ctx,
 			kind: TypeKind::Unknown,
-			repr: None,
-			debug_value: |_, f| write!(f, "(???)"),
 		};
 
 		Self {
@@ -190,8 +177,6 @@ impl<'a> Type<'a> {
 				let data = TypeData {
 					ctx: self.data.ctx,
 					kind: TypeKind::Invalid(typ),
-					repr: None,
-					debug_value: |_, f| write!(f, "(!!!)"),
 				};
 				types.store(data)
 			})
@@ -246,11 +231,6 @@ impl<'a> Type<'a> {
 		Type { data }
 	}
 
-	/// Underlying data representation for types that have it.
-	pub fn repr(&self) -> Option<&'a DataRepr<'a>> {
-		self.data.repr.as_ref()
-	}
-
 	/// Return the sum of this type with the given type.
 	pub fn sum(&self, _other: Type<'a>) -> Type<'a> {
 		todo!()
@@ -275,23 +255,6 @@ impl<'a> Type<'a> {
 	#[inline]
 	fn as_ptr(self) -> *const TypeData<'a> {
 		self.data.as_ptr()
-	}
-
-	pub fn debug_value(&self, v: Value<'a>, f: &mut Formatter) -> std::fmt::Result {
-		(self.data.debug_value)(v, f)
-	}
-
-	pub fn display_value(&self, v: Value<'a>, f: &mut Formatter) -> std::fmt::Result {
-		let str = self.context().types().str();
-		let to_string = self.context().ops().get(OpKey(OpKind::Core, Symbol::str("to_string")));
-		if let Some(op) = to_string.get_unary((*self, str)) {
-			let ctx = self.context();
-			let val = op.eval(ctx, v).map_err(|_| std::fmt::Error)?;
-			let val = val.get_str().expect("invalid return in `to_string`");
-			write!(f, "{val}")
-		} else {
-			self.debug_value(v, f)
-		}
 	}
 
 	#[inline]
@@ -342,8 +305,6 @@ impl<'a> PartialOrd for Type<'a> {
 struct TypeData<'a> {
 	ctx: ContextRef<'a>,
 	kind: TypeKind<'a>,
-	repr: Option<DataRepr<'a>>,
-	debug_value: fn(Value, &mut Formatter) -> std::fmt::Result,
 }
 
 impl<'a> Ord for TypeData<'a> {

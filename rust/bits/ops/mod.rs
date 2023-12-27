@@ -182,18 +182,18 @@ mod tests {
 		let ctx = ctx.get();
 
 		let str = ctx.types().builtin(Primitive::String);
-		let val = ctx.str("abc123");
+		let node = ctx.str("abc123");
 
-		assert_eq!(str, val.get_type());
+		assert_eq!(str, node.get_type());
 
 		let to_string = OpKey(OpKind::Core, Symbol::str("to_string"));
 		let to_string = ctx.ops().get(to_string);
 		to_string.define_unary((str, str)).set_eval(|ctx, val| {
-			let val = val.get_str().unwrap();
+			let val = if let Value::Str(val) = val { val } else { unreachable!() };
 			let val = format!("{val}!!!");
-			Ok(ctx.str(val))
+			Ok(Value::Str(ctx.arena().str(val)))
 		});
 
-		assert_eq!("abc123!!!", format!("{val}"));
+		assert_eq!("abc123!!!", format!("{node}"));
 	}
 }

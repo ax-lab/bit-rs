@@ -1,46 +1,10 @@
 use super::*;
 
-/// Describes the concrete underlying value for a [`Type`].
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum DataRepr<'a> {
-	/// Zero sized.
-	Empty,
-	/// A builtin primitive value.
-	Builtin(Primitive),
-	/// A value storing a symbol.
-	Symbol(Symbol),
-	/// Unspecified integer value. Includes signed and unsigned.
-	Integer,
-	/// Unspecified unsigned integer type.
-	Unsigned,
-	/// Unspecified numeric type. Includes integers, decimals, and floats.
-	Number,
-	/// Default string representation.
-	String,
-	/// Pointer to an specific type.
-	Ptr(Type<'a>),
-	/// Reference to an specific type. A reference is basically a pointer that
-	/// can never be null.
-	Ref(Type<'a>),
-	/// A value holding a type reference.
-	Type,
-	/// A value holding a reference for a specific base type and its sub-types.
-	TypeOf(Type<'a>),
-	/// Plain function value.
-	Func(Type<'a>),
-	/// Record composite.
-	Record(&'a [Type<'a>]),
-	/// Untagged union type.
-	Union(&'a [Type<'a>]),
-	/// Fixed array.
-	Array(usize, Type<'a>),
-	/// Slice type.
-	Slice(Type<'a>),
-}
-
 /// Primitive data types.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Primitive {
+	/// Zero sized type.
+	Empty,
 	/// Boolean
 	Bool,
 	/// Generic string
@@ -77,7 +41,7 @@ pub enum Primitive {
 
 impl<'a> Type<'a> {
 	pub fn is_builtin(&self, typ: Primitive) -> bool {
-		if let Some(&DataRepr::Builtin(repr)) = self.repr() {
+		if let TypeKind::Builtin(repr) = self.data.kind {
 			repr == typ
 		} else {
 			false
@@ -94,39 +58,6 @@ impl<'a> TypeContext<'a> {
 		TypeData {
 			ctx: self.ctx,
 			kind: TypeKind::Builtin(typ),
-			repr: Some(DataRepr::Builtin(typ)),
-			debug_value: |v, f| Self::debug_builtin(v, f),
-		}
-	}
-
-	fn debug_builtin(val: Value, f: &mut Formatter) -> std::fmt::Result {
-		if let Some(DataRepr::Builtin(typ)) = val.get_type().repr() {
-			let dt = val.data();
-			match typ {
-				Primitive::Bool => write!(f, "{}", dt.bool()),
-				Primitive::String => write!(f, "{:?}", unsafe { dt.str() }),
-				Primitive::SInt(8) => write!(f, "{}", dt.i8()),
-				Primitive::SInt(16) => write!(f, "{}", dt.i16()),
-				Primitive::SInt(32) => write!(f, "{}", dt.i32()),
-				Primitive::UInt(8) => write!(f, "{}", dt.u8()),
-				Primitive::UInt(16) => write!(f, "{}", dt.u16()),
-				Primitive::UInt(32) => write!(f, "{}", dt.u32()),
-				Primitive::SInt(0..=64) => write!(f, "{}", dt.i64()),
-				Primitive::UInt(0..=64) => write!(f, "{}", dt.u64()),
-				Primitive::SInt(n) => todo!("SInt({n}) not implemented"),
-				Primitive::UInt(n) => todo!("UInt({n}) not implemented"),
-				Primitive::UIntSize => write!(f, "{}", dt.usize()),
-				Primitive::SIntSize => write!(f, "{}", dt.isize()),
-				Primitive::Char => write!(f, "{}", dt.char()),
-				Primitive::Float32 => write!(f, "{:?}", dt.f32()),
-				Primitive::Float64 => write!(f, "{:?}", dt.f64()),
-				Primitive::Pointer => write!(f, "{:?}", dt.ptr()),
-				Primitive::UIntPtr => write!(f, "{:?}", dt.usize()),
-				Primitive::SIntPtr => write!(f, "{:?}", dt.isize()),
-				Primitive::PtrDiff => write!(f, "{:?}", dt.isize()),
-			}
-		} else {
-			unreachable!("invalid value")
 		}
 	}
 }
@@ -134,6 +65,7 @@ impl<'a> TypeContext<'a> {
 impl Debug for Primitive {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
+			Self::Empty => write!(f, "()"),
 			Self::Bool => write!(f, "bool"),
 			Self::String => write!(f, "string"),
 			Self::SInt(n) => write!(f, "i{n}"),

@@ -107,6 +107,10 @@ pub struct ContextRef<'a> {
 }
 
 impl<'a> ContextRef<'a> {
+	pub fn store<T>(&self, value: T) -> &'a T {
+		self.arena().store(value)
+	}
+
 	#[inline]
 	pub fn arena(&self) -> &'a Store {
 		&self.inner().arena
