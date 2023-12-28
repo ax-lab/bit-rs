@@ -2,9 +2,6 @@ use super::*;
 
 pub mod data;
 pub mod expr;
-pub mod node;
-
-pub use node::*;
 
 struct ValueContext<'a> {
 	#[allow(unused)]
@@ -24,7 +21,6 @@ pub enum Value<'a> {
 	Str(&'a str),
 	SInt(i64),
 	UInt(u64),
-	Type(Type<'a>),
 }
 
 impl<'a> Display for Value<'a> {
@@ -35,7 +31,6 @@ impl<'a> Display for Value<'a> {
 			Value::Str(v) => write!(f, "{v}"),
 			Value::SInt(v) => write!(f, "{v}"),
 			Value::UInt(v) => write!(f, "{v}"),
-			Value::Type(v) => write!(f, "{v}"),
 		}
 	}
 }
@@ -48,7 +43,6 @@ impl<'a> Debug for Value<'a> {
 			Value::Str(v) => write!(f, "{v:?}"),
 			Value::SInt(v) => write!(f, "{v:?}"),
 			Value::UInt(v) => write!(f, "{v:?}"),
-			Value::Type(v) => write!(f, "{v:?}"),
 		}
 	}
 }
