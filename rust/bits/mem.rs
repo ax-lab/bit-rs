@@ -22,7 +22,7 @@ pub fn print_bytes<T: Write, U: AsRef<str>>(out: &mut T, label: U, bytes: usize)
 	.raise()
 }
 
-pub struct Store {
+pub struct Arena {
 	size: usize,
 	used: AtomicUsize,
 	page: AtomicPtr<Page>,
@@ -39,7 +39,7 @@ struct Free {
 	next: *mut Free,
 }
 
-impl Store {
+impl Arena {
 	const DEFAULT_PAGE: usize = 256 * MB;
 	const MIN_PAGE: usize = 1024;
 	const MAX_ALLOC_RATIO: usize = 8;
@@ -51,15 +51,15 @@ impl Store {
 	pub fn with_page(size: usize) -> Self {
 		assert!(size > 0);
 		let size = std::cmp::max(Self::MIN_PAGE, size);
-		let store = Self {
+		let arena = Self {
 			size,
 			used: Default::default(),
 			page: Default::default(),
 			free: Default::default(),
 			sync: Default::default(),
 		};
-		store.alloc_page();
-		store
+		arena.alloc_page();
+		arena
 	}
 
 	pub fn stats() -> &'static MemStat {
@@ -240,7 +240,7 @@ impl Store {
 	}
 }
 
-impl Drop for Store {
+impl Drop for Arena {
 	fn drop(&mut self) {
 		let used = self.used.load(MEM_ORDER);
 		Self::stats().sub(0, used);
@@ -440,27 +440,27 @@ mod tests {
 	use super::*;
 
 	#[test]
-	pub fn basic_store() {
-		let store = Store::with_page(4096);
+	pub fn basic_arena() {
+		let arena = Arena::with_page(4096);
 
-		let value = store.store(format!("abc123"));
+		let value = arena.store(format!("abc123"));
 		assert_eq!("abc123", value);
 
-		let value = store.str("123");
+		let value = arena.str("123");
 		assert_eq!("123", value);
 
-		let value = store.str("abcdef");
+		let value = arena.str("abcdef");
 		assert_eq!("abcdef", value);
 
-		drop(store);
+		drop(arena);
 	}
 
 	#[test]
 	fn store_values() {
-		let store = Store::with_page(1024);
+		let arena = Arena::with_page(1024);
 		let mut values = Vec::new();
 		for i in 1..2048usize {
-			let item = store.store(i);
+			let item = arena.store(i);
 			values.push(item);
 		}
 
@@ -471,7 +471,7 @@ mod tests {
 
 	#[test]
 	fn store_interleaved() {
-		let arena = Store::with_page(512);
+		let arena = Arena::with_page(512);
 		let mut v0 = Vec::new();
 		let mut v1 = Vec::new();
 		let mut v2 = Vec::new();
@@ -499,10 +499,10 @@ mod tests {
 	}
 
 	#[test]
-	fn store_drops() {
+	fn arena_drops() {
 		let counter: Arc<RwLock<usize>> = Default::default();
 
-		let arena = Store::with_page(256);
+		let arena = Arena::with_page(256);
 		let count = 10000;
 
 		for _ in 0..count {
@@ -518,7 +518,7 @@ mod tests {
 	fn store_big_alloc() {
 		let counter: Arc<RwLock<usize>> = Default::default();
 
-		let arena = Store::with_page(1);
+		let arena = Arena::with_page(1);
 		let count = 10000;
 
 		for _ in 0..count {
@@ -534,7 +534,7 @@ mod tests {
 	fn store_slice() {
 		let counter: Arc<RwLock<usize>> = Default::default();
 
-		let arena = Store::with_page(17);
+		let arena = Arena::with_page(17);
 		let count = 10000;
 		let get_counter = || *counter.read().unwrap();
 
@@ -559,7 +559,7 @@ mod tests {
 
 	#[test]
 	pub fn store_chunk() {
-		let arena = Store::new();
+		let arena = Arena::new();
 		let value = arena.chunk([1, 2, 3, 4, 5]);
 		assert_eq!(5, value.len());
 		assert_eq!(&[1, 2, 3, 4, 5], value.as_slice());

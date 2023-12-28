@@ -115,11 +115,11 @@ impl<'a> TypeContext<'a> {
 	}
 
 	fn store(&'a self, data: TypeData<'a>) -> &'a TypeData<'a> {
-		let store = self.ctx.arena();
+		let arena = self.ctx.arena();
 		match data.kind {
 			TypeKind::None => &self.none,
 			TypeKind::Unknown => &self.unknown,
-			_ => store.store(data),
+			_ => arena.store(data),
 		}
 	}
 }
@@ -156,7 +156,7 @@ impl<'a> Type<'a> {
 	}
 
 	#[inline]
-	pub fn store(&self) -> &'a Store {
+	pub fn store(&self) -> &'a Arena {
 		self.context().arena()
 	}
 

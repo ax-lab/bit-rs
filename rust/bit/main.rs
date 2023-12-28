@@ -8,7 +8,7 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	let stats = Store::stats();
+	let stats = Arena::stats();
 	let used = stats.used();
 	let size = stats.size();
 	let max_used = stats.max_used();

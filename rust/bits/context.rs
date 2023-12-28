@@ -59,14 +59,14 @@ pub struct Context {
 struct InnerContext<'a> {
 	init: AtomicBool,
 	data: ContextData<'a>,
-	arena: Store,
+	arena: Arena,
 }
 
 impl Context {
 	pub fn new() -> Self {
 		let context = InnerContext {
 			init: false.into(),
-			arena: Store::new(),
+			arena: Arena::new(),
 			data: unsafe { MaybeUninit::zeroed().assume_init() },
 		};
 		let context = Box::leak(Box::new(context));
@@ -112,7 +112,7 @@ impl<'a> ContextRef<'a> {
 	}
 
 	#[inline]
-	pub fn arena(&self) -> &'a Store {
+	pub fn arena(&self) -> &'a Arena {
 		&self.inner().arena
 	}
 

@@ -17,7 +17,7 @@ impl<'a> Node<'a> {
 	}
 
 	#[inline]
-	pub fn store(&self) -> &'a Store {
+	pub fn arena(&self) -> &'a Arena {
 		self.context().arena()
 	}
 
