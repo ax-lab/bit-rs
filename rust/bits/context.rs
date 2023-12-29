@@ -5,17 +5,20 @@ use super::*;
 #[derive(Default)]
 struct ContextData<'a> {
 	types: ContextCell<'a, TypeContext<'a>>,
+	sources: ContextCell<'a, SourceContext<'a>>,
 	ops: ContextCell<'a, OpContext<'a>>,
 }
 
 impl<'a> ContextData<'a> {
 	fn new(&self, ctx: ContextRef<'a>) {
 		self.types.new(ctx);
+		self.sources.new(ctx);
 		self.ops.new(ctx);
 	}
 
 	fn init(&self) {
 		self.types.init();
+		self.sources.init();
 		self.ops.init();
 	}
 }
@@ -23,6 +26,10 @@ impl<'a> ContextData<'a> {
 impl<'a> ContextRef<'a> {
 	pub fn types(&self) -> &'a TypeContext<'a> {
 		self.data().types.get()
+	}
+
+	pub fn sources(&self) -> &'a SourceContext<'a> {
+		self.data().sources.get()
 	}
 
 	pub fn ops(&self) -> &'a OpContext<'a> {

@@ -2,38 +2,52 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 
-pub struct SourceMap {
-	base_dir: PathBuf,
-	sources: RwLock<HashMap<PathBuf, Result<Source>>>,
+pub struct SourceContext<'a> {
+	ctx: ContextRef<'a>,
+	map: SourceMap<'a>,
 }
 
-impl SourceMap {
-	pub fn new<T: AsRef<Path>>(base_dir: T) -> Result<Self> {
+impl<'a> IsContext<'a> for SourceContext<'a> {
+	fn new(ctx: ContextRef<'a>) -> Self {
+		Self {
+			ctx,
+			map: SourceMap::new(".").unwrap(),
+		}
+	}
+}
+
+impl<'a> SourceContext<'a> {
+	pub fn set_base_dir<T: AsRef<Path>>(&self, base_dir: T) -> Result<PathBuf> {
 		let base_dir = norm_path(base_dir, "base path")?;
-		Ok(Self {
-			base_dir,
-			sources: Default::default(),
-		})
+		let previous = std::mem::replace(&mut *self.map.base_dir.write().unwrap(), base_dir);
+		Ok(previous)
 	}
 
-	pub fn from_string<T: Into<String>, U: Into<String>>(name: T, text: U) -> Source {
-		Source::new(name, text)
+	pub fn from_string<T: Into<String>, U: Into<String>>(&self, name: T, text: U) -> Source<'a> {
+		let data = SourceData {
+			name: name.into(),
+			text: text.into(),
+			path: None,
+		};
+		let data = self.ctx.store(data);
+		Source { data }
 	}
 
 	pub fn load_file<T: AsRef<Path>>(&self, path: T) -> Result<Source> {
 		let path = path.as_ref();
-		let full_path = get_full_path(&self.base_dir, path)?;
+		let base_dir = self.map.base_dir.read().unwrap().clone();
+		let full_path = get_full_path(&base_dir, path)?;
 
-		let sources = self.sources.read().unwrap();
+		let sources = self.map.sources.read().unwrap();
 		if let Some(src) = sources.get(&full_path) {
 			src.clone()
 		} else {
 			drop(sources);
 
-			let mut sources = self.sources.write().unwrap();
+			let mut sources = self.map.sources.write().unwrap();
 			let entry = sources.entry(full_path).or_insert_with_key(|full_path| {
 				let name = full_path
-					.strip_prefix(&self.base_dir)
+					.strip_prefix(&base_dir)
 					.unwrap_or(full_path)
 					.to_string_lossy()
 					.into();
@@ -42,8 +56,8 @@ impl SourceMap {
 					name,
 					text,
 					path: Some(full_path.clone()),
-				}
-				.into();
+				};
+				let data = self.ctx.store(data);
 				Ok(Source { data })
 			});
 			entry.clone()
@@ -51,9 +65,24 @@ impl SourceMap {
 	}
 }
 
-#[derive(Clone)]
-pub struct Source {
-	data: Arc<SourceData>,
+pub struct SourceMap<'a> {
+	base_dir: RwLock<PathBuf>,
+	sources: RwLock<HashMap<PathBuf, Result<Source<'a>>>>,
+}
+
+impl<'a> SourceMap<'a> {
+	pub fn new<T: AsRef<Path>>(base_dir: T) -> Result<Self> {
+		let base_dir = norm_path(base_dir, "base path")?.into();
+		Ok(Self {
+			base_dir,
+			sources: Default::default(),
+		})
+	}
+}
+
+#[derive(Copy, Clone)]
+pub struct Source<'a> {
+	data: &'a SourceData,
 }
 
 struct SourceData {
@@ -62,14 +91,7 @@ struct SourceData {
 	path: Option<PathBuf>,
 }
 
-impl Source {
-	pub fn new<T: Into<String>, U: Into<String>>(name: T, text: U) -> Self {
-		let name = name.into();
-		let text = text.into();
-		let data = SourceData { name, text, path: None }.into();
-		Source { data }
-	}
-
+impl<'a> Source<'a> {
 	pub fn empty() -> Self {
 		static EMPTY: OnceLock<Arc<SourceData>> = OnceLock::new();
 		let data = EMPTY.get_or_init(|| {
@@ -80,14 +102,14 @@ impl Source {
 			}
 			.into()
 		});
-		Source { data: data.clone() }
+		Source { data }
 	}
 
-	pub fn name(&self) -> &str {
+	pub fn name(&self) -> &'a str {
 		self.data.name.as_str()
 	}
 
-	pub fn text(&self) -> &str {
+	pub fn text(&self) -> &'a str {
 		self.data.text.as_str()
 	}
 
@@ -95,36 +117,40 @@ impl Source {
 		self.data.text.len()
 	}
 
-	pub fn path(&self) -> Option<&Path> {
+	pub fn path(&self) -> Option<&'a Path> {
 		self.data.path.as_ref().map(|x| x.as_path())
 	}
 
-	pub fn span(&self) -> Span {
+	pub fn span(&self) -> Span<'a> {
 		Span::new(0, self.len(), self.clone())
+	}
+
+	fn as_ptr(&self) -> *const SourceData {
+		self.data
 	}
 }
 
-impl Default for Source {
+impl<'a> Default for Source<'a> {
 	fn default() -> Self {
 		Source::empty()
 	}
 }
 
-impl Eq for Source {}
+impl<'a> Eq for Source<'a> {}
 
-impl PartialEq for Source {
+impl<'a> PartialEq for Source<'a> {
 	fn eq(&self, other: &Self) -> bool {
-		Arc::as_ptr(&self.data) == Arc::as_ptr(&other.data)
+		self.as_ptr() == other.as_ptr()
 	}
 }
 
-impl Hash for Source {
+impl<'a> Hash for Source<'a> {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		Arc::as_ptr(&self.data).hash(state);
+		self.as_ptr().hash(state);
 	}
 }
 
-impl Display for Source {
+impl<'a> Display for Source<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let name = self.name();
 		let name = if name == "" { "<empty>" } else { name };
@@ -132,7 +158,7 @@ impl Display for Source {
 	}
 }
 
-impl Debug for Source {
+impl<'a> Debug for Source<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let name = self.name();
 		let name = if name == "" { "()" } else { name };
@@ -140,10 +166,10 @@ impl Debug for Source {
 	}
 }
 
-impl Ord for Source {
+impl<'a> Ord for Source<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
-		let a = self.data.as_ref();
-		let b = other.data.as_ref();
+		let a = self.data;
+		let b = other.data;
 
 		// sort files first...
 		let a_str = a.path.is_none();
@@ -157,7 +183,7 @@ impl Ord for Source {
 	}
 }
 
-impl PartialOrd for Source {
+impl<'a> PartialOrd for Source<'a> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}

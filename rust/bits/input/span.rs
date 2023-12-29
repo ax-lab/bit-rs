@@ -1,39 +1,42 @@
 use super::*;
 
 /// Spans reference a slice of text from a [`Source`].
-#[derive(Default, Clone, Eq, PartialEq, Hash)]
-pub struct Span {
-	pos: usize,
-	len: usize,
-	src: Source,
+#[derive(Default, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Span<'a> {
+	sta: usize,
+	end: usize,
+	src: Source<'a>,
 }
 
-impl Span {
-	pub(crate) fn new(pos: usize, len: usize, src: Source) -> Self {
-		Self { pos, len, src }
+impl<'a> Span<'a> {
+	pub(crate) fn new(pos: usize, len: usize, src: Source<'a>) -> Self {
+		let sta = pos;
+		let end = sta + len;
+		assert!(end <= src.len());
+		Self { sta, end, src }
 	}
 
 	pub fn empty() -> Self {
 		Self::default()
 	}
 
-	pub fn src(&self) -> &Source {
-		&self.src
+	pub fn src(&self) -> Source<'a> {
+		self.src
 	}
 
 	pub fn pos(&self) -> usize {
-		self.pos
+		self.sta
 	}
 
 	pub fn len(&self) -> usize {
-		self.len
+		self.end - self.sta
 	}
 
 	pub fn end(&self) -> usize {
-		self.pos + self.len
+		self.end
 	}
 
-	pub fn text(&self) -> &str {
+	pub fn text(&self) -> &'a str {
 		unsafe { self.src.text().get_unchecked(self.pos()..self.end()) }
 	}
 
