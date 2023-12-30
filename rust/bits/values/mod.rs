@@ -3,17 +3,6 @@ use super::*;
 pub mod data;
 pub mod expr;
 
-struct ValueContext<'a> {
-	#[allow(unused)]
-	ctx: ContextRef<'a>,
-}
-
-impl<'a> IsContext<'a> for ValueContext<'a> {
-	fn new(ctx: ContextRef<'a>) -> Self {
-		Self { ctx }
-	}
-}
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Value<'a> {
 	Unit,
@@ -79,32 +68,32 @@ mod tests {
 		let ctx = Context::new();
 		let ctx = ctx.get();
 		let a = ctx.unit();
-		assert_eq!(&Value::Unit, a.value());
+		assert_eq!(Value::Unit, a.value());
 		assert_eq!("", format!("{a}"));
 		assert_eq!("()", format!("{a:?}"));
 
 		let a = ctx.bool(true);
-		assert_eq!(&Value::Bool(true), a.value());
+		assert_eq!(Value::Bool(true), a.value());
 		assert_eq!("true", format!("{a}"));
 		assert_eq!("true", format!("{a:?}"));
 
 		let a = ctx.bool(false);
-		assert_eq!(&Value::Bool(false), a.value());
+		assert_eq!(Value::Bool(false), a.value());
 		assert_eq!("false", format!("{a}"));
 		assert_eq!("false", format!("{a:?}"));
 
 		let a = ctx.sint(42);
-		assert_eq!(&Value::SInt(42), a.value());
+		assert_eq!(Value::SInt(42), a.value());
 		assert_eq!("42", format!("{a}"));
 		assert_eq!("42", format!("{a:?}"));
 
 		let a = ctx.uint(69);
-		assert_eq!(&Value::UInt(69), a.value());
+		assert_eq!(Value::UInt(69), a.value());
 		assert_eq!("69", format!("{a}"));
 		assert_eq!("69", format!("{a:?}"));
 
 		let a = ctx.str("abc123");
-		assert_eq!(&Value::Str("abc123"), a.value());
+		assert_eq!(Value::Str("abc123"), a.value());
 		assert_eq!("abc123", format!("{a}"));
 		assert_eq!("\"abc123\"", format!("{a:?}"));
 	}

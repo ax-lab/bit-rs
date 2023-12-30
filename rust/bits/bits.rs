@@ -7,7 +7,7 @@ use std::{
 	io::Write,
 	marker::PhantomData,
 	mem::MaybeUninit,
-	ops::Deref,
+	ops::{Deref, RangeBounds},
 	panic::UnwindSafe,
 	sync::{
 		atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicU8, AtomicUsize, Ordering as SyncOrder},
