@@ -122,7 +122,21 @@ impl<'a> Source<'a> {
 	}
 
 	pub fn span(&self) -> Span<'a> {
-		Span::new(0, self.len(), self.clone())
+		Span::new(0, self.len(), *self)
+	}
+
+	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> Span<'a> {
+		let sta = match range.start_bound() {
+			std::ops::Bound::Included(&n) => n,
+			std::ops::Bound::Excluded(&n) => n + 1,
+			std::ops::Bound::Unbounded => 0,
+		};
+		let end = match range.end_bound() {
+			std::ops::Bound::Included(&n) => n + 1,
+			std::ops::Bound::Excluded(&n) => n,
+			std::ops::Bound::Unbounded => self.len(),
+		};
+		Span::new(sta, end, *self)
 	}
 
 	fn as_ptr(&self) -> *const SourceData {

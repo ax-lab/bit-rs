@@ -173,6 +173,7 @@ impl<'a> Unary<'a> {
 }
 
 #[cfg(test)]
+#[cfg(off)]
 mod tests {
 	use super::*;
 

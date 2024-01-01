@@ -9,10 +9,8 @@ pub struct Span<'a> {
 }
 
 impl<'a> Span<'a> {
-	pub(crate) fn new(pos: usize, len: usize, src: Source<'a>) -> Self {
-		let sta = pos;
-		let end = sta + len;
-		assert!(end <= src.len());
+	pub(crate) fn new(sta: usize, end: usize, src: Source<'a>) -> Self {
+		assert!(sta <= end && end <= src.len());
 		Self { sta, end, src }
 	}
 

@@ -2,20 +2,53 @@ use std::cell::Cell;
 
 use super::*;
 
+pub mod binding;
+use binding::*;
+
+pub mod heap;
 pub mod iter;
+
+pub use heap::*;
 pub use iter::*;
 
+pub struct NodeContext<'a> {
+	ctx: ContextRef<'a>,
+	bindings: Bindings<'a>,
+}
+
+impl<'a> IsContext<'a> for NodeContext<'a> {
+	fn new(ctx: ContextRef<'a>) -> Self {
+		Self {
+			ctx,
+			bindings: Bindings::new(ctx),
+		}
+	}
+}
+
 impl<'a> ContextRef<'a> {
-	pub fn node(&self, value: Value<'a>) -> Node<'a> {
-		let data = self.store(NodeData {
-			ctx: *self,
+	pub fn node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
+		self.nodes().new_node(value, span)
+	}
+}
+
+impl<'a> NodeContext<'a> {
+	pub fn new_node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
+		let data = self.ctx.store(NodeData {
+			ctx: self.ctx,
+			span,
 			value: value.into(),
-			span: Default::default(),
 			nodes: Default::default(),
 			parent: Default::default(),
 			index: Default::default(),
+			is_done: false.into(),
 		});
-		Node { data }
+		let node = Node { data };
+		self.reindex_node(node);
+		node
+	}
+
+	pub fn reindex_node(&self, node: Node<'a>) {
+		self.bindings.add(node.key(), node);
 	}
 }
 
@@ -26,53 +59,58 @@ pub struct Node<'a> {
 
 pub struct NodeData<'a> {
 	ctx: ContextRef<'a>,
+	span: Span<'a>,
 	value: Cell<Value<'a>>,
-	span: Cell<Span<'a>>,
 	nodes: Cell<&'a [Node<'a>]>,
 	parent: Cell<Option<Node<'a>>>,
 	index: Cell<usize>,
+	is_done: Cell<bool>,
 }
 
 impl<'a> Node<'a> {
-	pub fn context(&self) -> ContextRef<'a> {
+	pub fn context(self) -> ContextRef<'a> {
 		self.data.ctx
 	}
 
-	pub fn arena(&self) -> &'a Arena {
+	pub fn arena(self) -> &'a Arena {
 		self.context().arena()
 	}
 
-	pub fn value(&self) -> Value<'a> {
+	#[inline]
+	pub fn value(self) -> Value<'a> {
 		self.data.value.get()
 	}
 
-	pub fn set_value(&self, value: Value<'a>) {
+	pub fn set_value(self, value: Value<'a>) {
 		self.data.value.set(value);
-	}
-
-	pub fn span(&self) -> Span<'a> {
-		self.data.span.get()
-	}
-
-	pub fn set_span(&self, span: Span<'a>) {
-		self.data.span.set(span);
+		self.context().nodes().reindex_node(self)
 	}
 
 	#[inline]
-	pub fn nodes(&self) -> &'a [Node<'a>] {
+	pub fn pos(self) -> usize {
+		self.data.span.pos()
+	}
+
+	#[inline]
+	pub fn span(self) -> Span<'a> {
+		self.data.span
+	}
+
+	#[inline]
+	pub fn nodes(self) -> &'a [Node<'a>] {
 		self.data.nodes.get()
 	}
 
 	#[inline]
-	pub fn len(&self) -> usize {
+	pub fn len(self) -> usize {
 		self.nodes().len()
 	}
 
-	pub fn node(&self, index: usize) -> Option<Node<'a>> {
+	pub fn node(self, index: usize) -> Option<Node<'a>> {
 		self.nodes().get(index).copied()
 	}
 
-	pub fn set_nodes(&self, nodes: &'a [Node<'a>]) {
+	pub fn set_nodes(self, nodes: &'a [Node<'a>]) {
 		for it in self.nodes() {
 			it.data.parent.set(None);
 			it.data.index.set(0);
@@ -81,25 +119,25 @@ impl<'a> Node<'a> {
 		self.data.nodes.set(nodes);
 		for (n, it) in nodes.iter().enumerate() {
 			assert!(it.parent().is_none());
-			it.data.parent.set(Some(*self));
+			it.data.parent.set(Some(self));
 			it.data.index.set(n);
 		}
 	}
 
-	pub fn parent(&self) -> Option<Node<'a>> {
+	pub fn parent(self) -> Option<Node<'a>> {
 		self.data.parent.get()
 	}
 
-	pub fn index(&self) -> usize {
+	pub fn index(self) -> usize {
 		self.data.index.get()
 	}
 
-	pub fn next(&self) -> Option<Node<'a>> {
+	pub fn next(self) -> Option<Node<'a>> {
 		let next = self.index() + 1;
 		self.parent().and_then(|x| x.node(next))
 	}
 
-	pub fn prev(&self) -> Option<Node<'a>> {
+	pub fn prev(self) -> Option<Node<'a>> {
 		let index = self.index();
 		if index == 0 {
 			return None;
@@ -109,7 +147,7 @@ impl<'a> Node<'a> {
 		self.parent().and_then(|x| x.node(prev))
 	}
 
-	pub fn insert_nodes<T: IntoIterator<Item = Node<'a>>>(&self, at: usize, nodes: T)
+	pub fn insert_nodes<T: IntoIterator<Item = Node<'a>>>(self, at: usize, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,
 	{
@@ -126,20 +164,20 @@ impl<'a> Node<'a> {
 		let nodes: &'a [Node<'a>] = arena.slice(nodes);
 		for (n, it) in nodes.iter().enumerate().skip(at).take(len) {
 			assert!(it.parent().is_none());
-			it.data.parent.set(Some(*self));
+			it.data.parent.set(Some(self));
 			it.data.index.set(n);
 		}
 		self.data.nodes.set(nodes);
 	}
 
-	pub fn append_nodes<T: IntoIterator<Item = Node<'a>>>(&self, nodes: T)
+	pub fn append_nodes<T: IntoIterator<Item = Node<'a>>>(self, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,
 	{
 		self.insert_nodes(self.len(), nodes)
 	}
 
-	pub fn remove_nodes<T: RangeBounds<usize>>(&self, range: T) -> &'a [Node<'a>] {
+	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> &'a [Node<'a>] {
 		let arena = self.data.ctx.arena();
 		let nodes = self.nodes();
 		let sta = match range.start_bound() {
@@ -184,19 +222,23 @@ impl<'a> Node<'a> {
 		return removed;
 	}
 
-	pub fn get_type(&self) -> Type<'a> {
+	pub fn get_type(self) -> Type<'a> {
 		todo!()
 	}
 
-	pub fn keep_alive(&self) {
-		todo!()
+	pub fn keep_alive(self) {
+		self.data.is_done.set(false);
 	}
 
-	pub fn flag_done(&self) {
-		todo!()
+	pub fn flag_done(self) {
+		self.data.is_done.set(true);
 	}
 
-	fn as_ptr(&self) -> *const NodeData<'a> {
+	pub fn is_done(self) -> bool {
+		self.data.is_done.get()
+	}
+
+	fn as_ptr(self) -> *const NodeData<'a> {
 		self.data
 	}
 
