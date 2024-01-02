@@ -1,7 +1,7 @@
 use super::*;
 
 pub mod binding;
-use binding::*;
+pub use binding::*;
 
 pub mod heap;
 pub mod iter;
@@ -271,7 +271,7 @@ impl<'a> Display for Node<'a> {
 
 impl<'a> Debug for Node<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?}", self.value())
+		write!(f, "{:?} -- {:?}", self.value(), self.span())
 	}
 }
 

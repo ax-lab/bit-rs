@@ -23,6 +23,10 @@ impl<'a> Match<'a> {
 		Self::kind_of(Value::Str(""))
 	}
 
+	pub fn source() -> Self {
+		Self::kind_of(Value::Source(Source::default()))
+	}
+
 	pub fn kind_of(value: Value<'a>) -> Self {
 		Self::KindOf(discriminant(&value))
 	}
@@ -166,7 +170,9 @@ impl<'a> Bindings<'a> {
 			}
 
 			if nodes.len() > 0 {
-				let span = source.range(value.sta..value.end);
+				let sta = value.sta;
+				let end = std::cmp::min(value.end, source.len());
+				let span = source.range(sta..end);
 				return Some(BoundNodes { span, value, nodes });
 			}
 		}

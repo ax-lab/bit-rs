@@ -58,8 +58,16 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 
 	let nodes = bindings.get_pending();
 	if nodes.len() > 0 {
-		println!("\n>>> PENDING <<<\n");
-		println!("{nodes:#?}\n");
+		let nodes = nodes
+			.into_iter()
+			.map(|node| {
+				let location = node.span().location();
+				format!("- at {location}: {node}")
+			})
+			.collect::<Vec<_>>()
+			.join("\n");
+
+		err!("the following nodes were not processed:\n\n{nodes}")?;
 	}
 	Ok(Value::None)
 }

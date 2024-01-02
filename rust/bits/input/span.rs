@@ -41,6 +41,12 @@ impl<'a> Span<'a> {
 	pub fn is_empty(&self) -> bool {
 		self.len() == 0 && self.pos() == 0 && self.src == Source::empty()
 	}
+
+	pub fn location(&self) -> Cursor<'a> {
+		let mut cursor = Cursor::new(self.src());
+		cursor.skip_len(self.sta);
+		cursor
+	}
 }
 
 impl<'a> Ord for Span<'a> {
@@ -60,10 +66,9 @@ impl<'a> PartialOrd for Span<'a> {
 
 impl<'a> Display for Span<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		let mut cursor = Cursor::new(self.src());
+		let loc = self.location();
 		let len = self.len();
-		cursor.skip_len(self.sta);
-		write!(f, "{cursor}")?;
+		write!(f, "{loc}")?;
 		if len > 0 {
 			write!(f, "+{len}")?;
 		}

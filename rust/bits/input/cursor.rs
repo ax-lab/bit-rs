@@ -1,12 +1,13 @@
 use super::*;
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Cursor<'a> {
+	src: Source<'a>,
+	offset: usize,
 	line: usize,
 	column: usize,
 	indent: usize,
-	offset: usize,
 	was_cr: bool,
-	src: Source<'a>,
 }
 
 impl<'a> Cursor<'a> {

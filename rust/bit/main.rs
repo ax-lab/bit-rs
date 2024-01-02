@@ -12,6 +12,11 @@ fn main() {
 fn run(show_stats: bool) -> Result<()> {
 	let ctx = Context::new();
 	let ctx = ctx.get();
+
+	ctx.bindings()
+		.match_any(Match::source())
+		.bind(Value::Bool(true), Value::Unit);
+
 	let sources = ctx.sources();
 	for path in std::env::args().skip(1) {
 		let src = sources.load_file(path)?;
