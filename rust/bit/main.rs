@@ -15,7 +15,7 @@ fn run(show_stats: bool) -> Result<()> {
 
 	ctx.bindings()
 		.match_any(Match::source())
-		.bind(Value::Bool(true), Value::Unit);
+		.bind_with_precedence(Value::Unit, DebugPrint("sources"));
 
 	let sources = ctx.sources();
 	for path in std::env::args().skip(1) {

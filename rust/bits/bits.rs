@@ -28,11 +28,13 @@ pub mod context;
 pub use context::*;
 
 pub mod core;
+pub mod eval;
 pub mod input;
 pub mod ops;
 pub mod result;
 
 pub use core::*;
+pub use eval::*;
 pub use input::*;
 pub use ops::*;
 pub use result::*;
@@ -47,13 +49,8 @@ pub fn version() -> &'static str {
 pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
-		println!(
-			"\n>>> PROCESS: {:?} at {} (order = {}) <<<",
-			next.value(),
-			next.span(),
-			next.order()
-		);
-		println!("{:#?}", next.nodes());
+		let eval = next.eval();
+		eval.parse(ctx, next)?;
 	}
 
 	let nodes = bindings.get_pending();

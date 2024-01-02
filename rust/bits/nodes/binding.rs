@@ -96,7 +96,7 @@ impl<'a> BoundNodes<'a> {
 		self.nodes.as_slice()
 	}
 
-	pub fn value(&self) -> Value<'a> {
+	pub fn eval(&self) -> &'a dyn Evaluator<'a> {
 		self.value.val
 	}
 
@@ -346,12 +346,12 @@ pub struct Binding<'a> {
 }
 
 impl<'a> Binding<'a> {
-	pub fn bind(&self, val: Value<'a>, ord: Value<'a>) {
+	pub fn bind_with_precedence<T: Evaluator<'a> + 'a>(&self, ord: Value<'a>, eval: T) {
 		let bindings = self.table.by_pattern(self.pattern);
 		let value = self.table.ctx.store(BoundValue {
 			sta: self.sta,
 			end: self.end,
-			val,
+			val: self.table.ctx.store(eval),
 			ord,
 		});
 		bindings.bind(self.table.ctx, value);
@@ -361,7 +361,7 @@ impl<'a> Binding<'a> {
 struct BoundValue<'a> {
 	sta: usize,
 	end: usize,
-	val: Value<'a>,
+	val: &'a dyn Evaluator<'a>,
 	ord: Value<'a>,
 }
 
@@ -418,7 +418,6 @@ impl<'a> Ord for BoundSegment<'a> {
 		let b = other.val();
 		a.ord
 			.cmp(&b.ord)
-			.then_with(|| a.val.cmp(&b.val))
 			.then_with(|| a.sta.cmp(&b.sta))
 			.then_with(|| b.end.cmp(&a.end))
 	}
