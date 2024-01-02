@@ -1,5 +1,8 @@
 use super::*;
 
+pub mod lexer;
+pub use lexer::*;
+
 pub trait Evaluator<'a>: Debug {
 	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()>;
 }

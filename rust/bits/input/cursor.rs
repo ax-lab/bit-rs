@@ -22,6 +22,20 @@ impl<'a> Cursor<'a> {
 		}
 	}
 
+	#[inline]
+	pub fn text(&self) -> &'a str {
+		&self.src.text()[self.offset..]
+	}
+
+	#[inline]
+	pub fn len(&self) -> usize {
+		self.src.len() - self.offset
+	}
+
+	pub fn span_with_len(&self, len: usize) -> Span<'a> {
+		Span::new(self.offset, self.offset + len, self.src)
+	}
+
 	pub fn line(&self) -> usize {
 		self.line
 	}
@@ -36,11 +50,6 @@ impl<'a> Cursor<'a> {
 
 	pub fn peek(&self) -> Option<char> {
 		self.text().chars().next()
-	}
-
-	#[inline]
-	pub fn text(&self) -> &'a str {
-		&self.src.text()[self.offset..]
 	}
 
 	pub fn read(&mut self) -> Option<char> {

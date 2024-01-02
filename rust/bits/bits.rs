@@ -57,6 +57,7 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 	if nodes.len() > 0 {
 		let nodes = nodes
 			.into_iter()
+			.take(100)
 			.map(|node| {
 				let location = node.span().location();
 				format!("- at {location}: {node}")
