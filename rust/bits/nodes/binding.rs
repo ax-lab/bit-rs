@@ -318,6 +318,7 @@ impl<'a> BindTable<'a> {
 			table: self,
 			sta,
 			end,
+			ord: Value::SInt(0),
 		}
 	}
 
@@ -343,18 +344,24 @@ pub struct Binding<'a> {
 	table: &'a BindTable<'a>,
 	sta: usize,
 	end: usize,
+	ord: Value<'a>,
 }
 
 impl<'a> Binding<'a> {
-	pub fn bind_with_precedence<T: Evaluator<'a> + 'a>(&self, ord: Value<'a>, eval: T) {
+	pub fn bind<T: Evaluator<'a> + 'a>(&self, eval: T) {
 		let bindings = self.table.by_pattern(self.pattern);
 		let value = self.table.ctx.store(BoundValue {
 			sta: self.sta,
 			end: self.end,
 			val: self.table.ctx.store(eval),
-			ord,
+			ord: self.ord,
 		});
 		bindings.bind(self.table.ctx, value);
+	}
+
+	pub fn with_precedence(mut self, ord: Value<'a>) -> Self {
+		self.ord = ord;
+		self
 	}
 }
 

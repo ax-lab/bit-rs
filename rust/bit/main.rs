@@ -13,9 +13,7 @@ fn run(show_stats: bool) -> Result<()> {
 	let ctx = Context::new();
 	let ctx = ctx.get();
 
-	ctx.bindings()
-		.match_any(Match::source())
-		.bind_with_precedence(Value::Unit, DebugPrint("sources"));
+	ctx.bindings().match_any(Match::source()).bind(DebugPrint("sources"));
 
 	let sources = ctx.sources();
 	for path in std::env::args().skip(1) {
