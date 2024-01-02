@@ -1,5 +1,3 @@
-use std::cell::Cell;
-
 use super::*;
 
 pub mod binding;
@@ -28,6 +26,10 @@ impl<'a> IsContext<'a> for NodeContext<'a> {
 impl<'a> ContextRef<'a> {
 	pub fn node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
 		self.nodes().new_node(value, span)
+	}
+
+	pub fn bindings(&self) -> &'a Bindings<'a> {
+		&self.nodes().bindings
 	}
 }
 
@@ -283,7 +285,9 @@ impl<'a> PartialEq for Node<'a> {
 
 impl<'a> Ord for Node<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.value().cmp(&other.value())
+		self.value()
+			.cmp(&other.value())
+			.then_with(|| self.span().cmp(&other.span()))
 	}
 }
 

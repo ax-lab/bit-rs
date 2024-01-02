@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 
 use super::*;
 
+const TAB_SIZE: usize = 4;
+
 pub struct SourceContext<'a> {
 	ctx: ContextRef<'a>,
 	map: SourceMap<'a>,
@@ -28,6 +30,7 @@ impl<'a> SourceContext<'a> {
 			name: name.into(),
 			text: text.into(),
 			path: None,
+			tabs: TAB_SIZE.into(),
 		};
 		let data = self.ctx.store(data);
 		Source { data }
@@ -56,6 +59,7 @@ impl<'a> SourceContext<'a> {
 					name,
 					text,
 					path: Some(full_path.clone()),
+					tabs: TAB_SIZE.into(),
 				};
 				let data = self.ctx.store(data);
 				Ok(Source { data })
@@ -88,6 +92,7 @@ pub struct Source<'a> {
 struct SourceData {
 	name: String,
 	text: String,
+	tabs: AtomicUsize,
 	path: Option<PathBuf>,
 }
 
@@ -99,6 +104,7 @@ impl<'a> Source<'a> {
 				name: String::new(),
 				text: String::new(),
 				path: None,
+				tabs: TAB_SIZE.into(),
 			}
 			.into()
 		});
@@ -109,6 +115,7 @@ impl<'a> Source<'a> {
 		self.data.name.as_str()
 	}
 
+	#[inline]
 	pub fn text(&self) -> &'a str {
 		self.data.text.as_str()
 	}
@@ -123,6 +130,10 @@ impl<'a> Source<'a> {
 
 	pub fn span(&self) -> Span<'a> {
 		Span::new(0, self.len(), *self)
+	}
+
+	pub fn tab_size(&self) -> usize {
+		self.data.tabs.load(SyncOrder::Relaxed)
 	}
 
 	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> Span<'a> {
@@ -190,8 +201,10 @@ impl<'a> Ord for Source<'a> {
 		let b_str = b.path.is_none();
 		(a_str.cmp(&b_str))
 			.then_with(|| a.path.cmp(&b.path))
-			// ...then string sources by name
+			// ...then string sources by name, length, and text
 			.then_with(|| a.name.cmp(&b.name))
+			.then_with(|| a.text.len().cmp(&b.text.len()))
+			.then_with(|| a.text.cmp(&b.text))
 			// ...finally fallback to the pointer so there's always a global order
 			.then_with(|| (a as *const SourceData).cmp(&(b as *const SourceData)))
 	}

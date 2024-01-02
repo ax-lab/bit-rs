@@ -42,3 +42,44 @@ impl<'a> Span<'a> {
 		self.len() == 0 && self.pos() == 0 && self.src == Source::empty()
 	}
 }
+
+impl<'a> Ord for Span<'a> {
+	fn cmp(&self, other: &Self) -> Ordering {
+		self.src
+			.cmp(&other.src)
+			.then_with(|| self.sta.cmp(&other.sta))
+			.then_with(|| self.end.cmp(&other.end))
+	}
+}
+
+impl<'a> PartialOrd for Span<'a> {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl<'a> Display for Span<'a> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let mut cursor = Cursor::new(self.src());
+		let len = self.len();
+		cursor.skip_len(self.sta);
+		write!(f, "{cursor}")?;
+		if len > 0 {
+			write!(f, "+{len}")?;
+		}
+		Ok(())
+	}
+}
+
+impl<'a> Debug for Span<'a> {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let src = self.src();
+		let pos = self.pos();
+		let len = self.len();
+		write!(f, "{src}:{pos}")?;
+		if len > 0 {
+			write!(f, "+{len}")?;
+		}
+		Ok(())
+	}
+}

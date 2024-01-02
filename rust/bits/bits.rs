@@ -1,5 +1,5 @@
 use std::{
-	cell::{Ref, RefCell, UnsafeCell},
+	cell::{Cell, Ref, RefCell, UnsafeCell},
 	cmp::Ordering,
 	collections::HashMap,
 	fmt::{Debug, Display, Formatter},
@@ -42,4 +42,24 @@ pub use mem::*;
 
 pub fn version() -> &'static str {
 	"0.1.0"
+}
+
+pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
+	let bindings = ctx.bindings();
+	while let Some(next) = bindings.get_next() {
+		println!(
+			"\n>>> PROCESS: {:?} at {} (order = {}) <<<",
+			next.value(),
+			next.span(),
+			next.order()
+		);
+		println!("{:#?}", next.nodes());
+	}
+
+	let nodes = bindings.get_pending();
+	if nodes.len() > 0 {
+		println!("\n>>> PENDING <<<\n");
+		println!("{nodes:#?}\n");
+	}
+	Ok(Value::None)
 }

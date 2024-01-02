@@ -59,6 +59,7 @@ impl<'a> Key<'a> {
 			Value::Str(_) => Self::two(Self::Exact(value), Self::kind(value)),
 			Value::SInt(_) => Self::one(Self::kind(value)),
 			Value::UInt(_) => Self::one(Self::kind(value)),
+			Value::Source(_) => Self::one(Self::kind(value)),
 		}
 	}
 
@@ -126,6 +127,7 @@ impl<'a> Bindings<'a> {
 
 		let mut heap = self.segment_heap.write().unwrap();
 		let src = node.span().src();
+		node.keep_alive();
 		if src != Source::default() {
 			self.by_source(src).add_node(key, node, &mut heap);
 		}
@@ -170,6 +172,29 @@ impl<'a> Bindings<'a> {
 		}
 
 		None
+	}
+
+	pub fn get_pending(&self) -> Vec<Node<'a>> {
+		let mut output = Vec::new();
+		let sources = self.by_source.read().unwrap();
+		for it in sources.values() {
+			let by_key = it.by_key.read().unwrap();
+			for tb in by_key.values() {
+				let pending = tb.nodes.borrow();
+				let pending = pending.iter().copied();
+				let pending = pending.filter(|node| {
+					if !node.is_done() {
+						node.flag_done();
+						true
+					} else {
+						false
+					}
+				});
+				output.extend(pending);
+			}
+		}
+		output.sort();
+		output
 	}
 
 	fn by_source(&self, src: Source<'a>) -> &'a BySource<'a> {

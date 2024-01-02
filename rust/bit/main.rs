@@ -15,9 +15,11 @@ fn run(show_stats: bool) -> Result<()> {
 	let sources = ctx.sources();
 	for path in std::env::args().skip(1) {
 		let src = sources.load_file(path)?;
-		println!("\n>>> {src:?} <<<\n");
-		println!("{}\n", src.text());
+		ctx.node(Value::Source(src), src.span());
 	}
+
+	let value = process(ctx)?;
+	println!("\nResult = {value:?}\n");
 
 	if show_stats {
 		let stats = Arena::stats();
