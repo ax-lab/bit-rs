@@ -88,7 +88,9 @@ impl<'a> Key<'a> {
 }
 
 pub struct BoundNodes<'a> {
-	span: Span<'a>,
+	sta: usize,
+	end: usize,
+	src: Source<'a>,
 	value: &'a BoundValue<'a>,
 	nodes: Vec<Node<'a>>,
 }
@@ -106,8 +108,20 @@ impl<'a> BoundNodes<'a> {
 		self.value.ord
 	}
 
-	pub fn span(&self) -> Span<'a> {
-		self.span
+	pub fn src(&self) -> Source<'a> {
+		self.src
+	}
+
+	pub fn pos(&self) -> usize {
+		self.sta
+	}
+
+	pub fn end(&self) -> usize {
+		self.end
+	}
+
+	pub fn len(&self) -> usize {
+		self.end - self.sta
 	}
 }
 
@@ -173,7 +187,7 @@ impl<'a> Bindings<'a> {
 	pub fn get_next(&self) -> Option<BoundNodes<'a>> {
 		let mut heap = self.segment_heap.write().unwrap();
 		while let Some(item) = heap.shift() {
-			let source = item.parent.table.source;
+			let src = item.parent.table.source;
 			let value = item.val();
 			let mut items = vec![item];
 			let mut done_segments = item.parent.table.done_segments.borrow_mut();
@@ -195,9 +209,14 @@ impl<'a> Bindings<'a> {
 
 			if nodes.len() > 0 {
 				let sta = value.sta;
-				let end = std::cmp::min(value.end, source.len());
-				let span = source.range(sta..end);
-				return Some(BoundNodes { span, value, nodes });
+				let end = std::cmp::min(value.end, src.len());
+				return Some(BoundNodes {
+					sta,
+					end,
+					src,
+					value,
+					nodes,
+				});
 			}
 		}
 

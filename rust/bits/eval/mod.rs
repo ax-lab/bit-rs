@@ -23,10 +23,10 @@ pub struct DebugPrint<'a>(pub &'a str);
 impl<'a> Evaluator<'a> for DebugPrint<'a> {
 	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = ctx;
+		let (pos, end) = (binding.pos(), binding.end());
 		println!(
-			"\n>>> Process {} -- {} / order = {} <<<",
+			"\n>>> Process {} -- {pos}:{end} / order = {} <<<",
 			self.0,
-			binding.span(),
 			binding.order()
 		);
 		println!("{:#?}", binding.nodes());

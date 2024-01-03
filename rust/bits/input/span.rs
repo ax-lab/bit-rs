@@ -5,13 +5,14 @@ use super::*;
 pub struct Span<'a> {
 	sta: usize,
 	end: usize,
+	ind: usize,
 	src: Source<'a>,
 }
 
 impl<'a> Span<'a> {
-	pub(crate) fn new(sta: usize, end: usize, src: Source<'a>) -> Self {
+	pub(crate) fn new(src: Source<'a>, sta: usize, end: usize, ind: usize) -> Self {
 		assert!(sta <= end && end <= src.len());
-		Self { sta, end, src }
+		Self { sta, end, ind, src }
 	}
 
 	pub fn empty() -> Self {
@@ -32,6 +33,10 @@ impl<'a> Span<'a> {
 
 	pub fn end(&self) -> usize {
 		self.end
+	}
+
+	pub fn indent(&self) -> usize {
+		self.ind
 	}
 
 	pub fn text(&self) -> &'a str {

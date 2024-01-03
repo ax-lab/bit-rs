@@ -33,7 +33,7 @@ impl<'a> Cursor<'a> {
 	}
 
 	pub fn span_with_len(&self, len: usize) -> Span<'a> {
-		Span::new(self.offset, self.offset + len, self.src)
+		Span::new(self.src, self.offset, self.offset + len, self.indent)
 	}
 
 	pub fn line(&self) -> usize {
