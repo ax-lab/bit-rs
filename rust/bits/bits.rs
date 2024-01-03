@@ -61,6 +61,12 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::exact(Value::Token(Token::Break)))
 		.with_precedence(Value::SInt(1))
 		.bind(SplitLine);
+
+	ctx.bindings()
+		.match_any(Match::word("print"))
+		.with_precedence(Value::SInt(2))
+		.bind(Print);
+
 	Ok(())
 }
 
@@ -68,7 +74,7 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();
-		eval.parse(ctx, next)?;
+		eval.execute(ctx, next)?;
 	}
 
 	let mut nodes = bindings.get_pending();

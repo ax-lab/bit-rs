@@ -3,15 +3,37 @@ use super::*;
 pub mod lexer;
 pub use lexer::*;
 
+const DEBUG_EVAL: bool = false;
+
 pub trait Evaluator<'a>: Debug {
-	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()>;
+	fn execute(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		if DEBUG_EVAL {
+			let _ = self.print_op(ctx, &binding);
+		}
+
+		self.eval_nodes(ctx, binding)
+	}
+
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()>;
+
+	fn print_op(&self, ctx: ContextRef<'a>, binding: &BoundNodes<'a>) -> Result<()> {
+		let (pos, end) = (binding.pos(), binding.end());
+		let _ = ctx;
+		println!(
+			"\n>>> Process {:?} -- {pos}:{end} / order = {} <<<",
+			self,
+			binding.order()
+		);
+		println!("{:#?}", binding.nodes());
+		Ok(())
+	}
 }
 
 #[derive(Debug)]
 pub struct NoOp;
 
 impl<'a> Evaluator<'a> for NoOp {
-	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = (ctx, binding);
 		Ok(())
 	}
@@ -21,16 +43,12 @@ impl<'a> Evaluator<'a> for NoOp {
 pub struct DebugPrint<'a>(pub &'a str);
 
 impl<'a> Evaluator<'a> for DebugPrint<'a> {
-	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
-		let _ = ctx;
-		let (pos, end) = (binding.pos(), binding.end());
-		println!(
-			"\n>>> Process {} -- {pos}:{end} / order = {} <<<",
-			self.0,
-			binding.order()
-		);
-		println!("{:#?}", binding.nodes());
-		Ok(())
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		if !DEBUG_EVAL {
+			self.print_op(ctx, &binding)
+		} else {
+			Ok(())
+		}
 	}
 }
 
@@ -38,7 +56,7 @@ impl<'a> Evaluator<'a> for DebugPrint<'a> {
 pub struct TokenizeSource;
 
 impl<'a> Evaluator<'a> for TokenizeSource {
-	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let mut errors = Vec::new();
 		for it in binding.nodes() {
 			if let Value::Source(source) = it.value() {
@@ -69,7 +87,7 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 pub struct SplitLine;
 
 impl<'a> Evaluator<'a> for SplitLine {
-	fn parse(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
 		for (parent, targets) in binding.by_parent() {
 			let old_nodes = parent.remove_nodes(..);
 			let mut new_nodes = Vec::new();
@@ -95,6 +113,27 @@ impl<'a> Evaluator<'a> for SplitLine {
 
 			push(&old_nodes[cur..]);
 			parent.append_nodes(new_nodes);
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct Print;
+
+impl<'a> Evaluator<'a> for Print {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (parent, targets) in binding.by_parent() {
+			for it in targets.iter().rev() {
+				it.silence();
+				let index = it.index();
+				let nodes = parent.remove_nodes(index..);
+				let span = Span::range(nodes);
+				let node = ctx.node(Value::Print, span);
+				node.set_nodes(&nodes[1..]);
+				node.flag_done();
+				parent.push_node(node);
+			}
 		}
 		Ok(())
 	}

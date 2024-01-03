@@ -175,6 +175,10 @@ impl<'a> Node<'a> {
 		self.data.nodes.set(nodes);
 	}
 
+	pub fn push_node(self, node: Node<'a>) {
+		self.append_nodes(std::iter::once(node));
+	}
+
 	pub fn append_nodes<T: IntoIterator<Item = U>, U: Into<Node<'a>>>(self, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,

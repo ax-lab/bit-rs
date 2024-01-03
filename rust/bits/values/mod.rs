@@ -15,6 +15,7 @@ pub enum Value<'a> {
 	Module(Source<'a>),
 	Token(Token),
 	Group,
+	Print,
 }
 
 impl<'a> Display for Value<'a> {
@@ -26,10 +27,8 @@ impl<'a> Display for Value<'a> {
 			Value::Str(v) => write!(f, "{v}"),
 			Value::SInt(v) => write!(f, "{v}"),
 			Value::UInt(v) => write!(f, "{v}"),
-			Value::Source(src) => write!(f, "Source({src})"),
-			Value::Module(src) => write!(f, "Module({src})"),
 			Value::Token(tok) => write!(f, "{tok}"),
-			Value::Group => write!(f, "Group"),
+			_ => write!(f, "{self:?}"),
 		}
 	}
 }
@@ -43,10 +42,11 @@ impl<'a> Debug for Value<'a> {
 			Value::Str(v) => write!(f, "{v:?}"),
 			Value::SInt(v) => write!(f, "{v:?}"),
 			Value::UInt(v) => write!(f, "{v:?}"),
-			Value::Source(src) => write!(f, "{src:?}"),
-			Value::Module(src) => write!(f, "{src:?}"),
 			Value::Token(tok) => write!(f, "Token({tok:?})"),
+			Value::Source(src) => write!(f, "Source({src:?})"),
+			Value::Module(src) => write!(f, "Module({src:?})"),
 			Value::Group => write!(f, "Group"),
+			Value::Print => write!(f, "Print"),
 		}
 	}
 }

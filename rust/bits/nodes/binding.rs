@@ -15,6 +15,14 @@ impl<'a> Match<'a> {
 		Self::Exact(value)
 	}
 
+	pub fn symbol<T: Into<Symbol>>(symbol: T) -> Self {
+		Self::Exact(Value::Token(Token::Symbol(symbol.into())))
+	}
+
+	pub fn word<T: Into<Symbol>>(word: T) -> Self {
+		Self::Exact(Value::Token(Token::Word(word.into())))
+	}
+
 	pub fn unit() -> Self {
 		Self::kind_of(Value::Unit)
 	}
@@ -65,6 +73,7 @@ impl<'a> Key<'a> {
 			Value::Source(_) => Self::as_kind(v),
 			Value::Module(_) => Self::as_kind(v),
 			Value::Group => Self::as_kind(v),
+			Value::Print => Self::as_kind(v),
 
 			Value::Token(_) => Self::as_value(v),
 			Value::Str(_) => Self::as_value(v),
