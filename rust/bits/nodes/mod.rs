@@ -271,7 +271,12 @@ impl<'a> Display for Node<'a> {
 
 impl<'a> Debug for Node<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{:?} -- {:?}", self.value(), self.span())
+		let span = self.span();
+		if !span.is_empty() {
+			write!(f, "{:?} -- {:?}", self.value(), self.span())
+		} else {
+			write!(f, "{:?}", self.value())
+		}
 	}
 }
 

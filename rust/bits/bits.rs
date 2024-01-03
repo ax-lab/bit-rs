@@ -64,10 +64,12 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 		eval.parse(ctx, next)?;
 	}
 
-	let nodes = bindings.get_pending();
+	let mut nodes = bindings.get_pending();
 	if nodes.len() > 0 {
 		const MAX_BY_SRC: usize = 20;
 		const MAX_TOTAL: usize = 50;
+
+		nodes.sort_by_key(|node| (node.span(), node.value()));
 
 		let count = nodes.len();
 		let (s, were) = if count > 1 { ("s", "were") } else { ("", "was") };
@@ -87,8 +89,6 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 				*count += 1;
 			}
 		}
-
-		output.sort_by_key(|node| (node.span(), node.value()));
 
 		let output_len = output.len();
 		let nodes = output

@@ -62,7 +62,7 @@ mod tests {
 		let ctx = ctx.get();
 		let a = ctx.node(Value::Unit, Span::empty());
 		assert_eq!(Value::Unit, a.value());
-		assert_eq!("", format!("{a}"));
+		assert_eq!("()", format!("{a}"));
 		assert_eq!("()", format!("{a:?}"));
 
 		let a = ctx.node(Value::Bool(true), Span::empty());
