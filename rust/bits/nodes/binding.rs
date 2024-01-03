@@ -64,6 +64,7 @@ impl<'a> Key<'a> {
 			Value::SInt(_) => Self::one(Self::kind(value)),
 			Value::UInt(_) => Self::one(Self::kind(value)),
 			Value::Source(_) => Self::one(Self::kind(value)),
+			Value::Token(_) => Self::two(Self::Exact(value), Self::kind(value)),
 		}
 	}
 

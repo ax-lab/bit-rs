@@ -5,6 +5,36 @@ use super::*;
 /// Default result type for this library.
 pub type Result<T> = std::result::Result<T, Error>;
 
+pub trait ErrorIter {
+	fn combine<T: Default>(self, head: &str) -> Result<T>;
+}
+
+impl<I: IntoIterator<Item = Error>> ErrorIter for I {
+	fn combine<T: Default>(self, head: &str) -> Result<T> {
+		let mut output = Ok(T::default());
+		let mut text = String::new();
+		for it in self.into_iter() {
+			match output {
+				Ok(_) => {
+					output = Err(it);
+				}
+				Err(ref err) => {
+					if text.len() == 0 {
+						text = format!("- {err}\n- {it}");
+					} else {
+						text.push_str("\n- ");
+						text.push_str(it.to_string().as_str());
+					}
+				}
+			}
+		}
+		if text.len() > 0 {
+			return Err(Error::new(format!("{head}generated multiple errors:\n\n{text}")));
+		}
+		output
+	}
+}
+
 /// Default error type for this library.
 #[derive(Clone)]
 pub struct Error {

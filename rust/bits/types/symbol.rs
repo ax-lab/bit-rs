@@ -77,6 +77,21 @@ impl Symbol {
 	pub fn as_ptr(&self) -> *const u8 {
 		self.data.buf.as_ptr()
 	}
+
+	pub fn write_name(&self, f: &mut Formatter, allow_brackets: bool) -> std::fmt::Result {
+		if let Ok(str) = self.as_str() {
+			write!(f, "{str:?}")
+		} else {
+			if allow_brackets {
+				write!(f, "(")?;
+			}
+			write!(f, "{:?}", self.as_bytes())?;
+			if allow_brackets {
+				write!(f, ")")?;
+			}
+			Ok(())
+		}
+	}
 }
 
 impl Default for Symbol {
@@ -124,12 +139,7 @@ impl PartialOrd for Symbol {
 impl Debug for Symbol {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "Symbol(")?;
-
-		if let Ok(str) = self.as_str() {
-			write!(f, "{str:?}")?;
-		} else {
-			write!(f, "{:?}", self.as_bytes())?;
-		}
+		self.write_name(f, false)?;
 
 		let cnt = self.data.counter();
 		if cnt > 0 {
@@ -142,12 +152,7 @@ impl Debug for Symbol {
 
 impl Display for Symbol {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		if let Ok(str) = self.as_str() {
-			write!(f, "{str:?}")
-		} else {
-			write!(f, "({:?})", self.as_bytes())
-		}?;
-
+		self.write_name(f, true)?;
 		write!(f, "$")?;
 
 		let cnt = self.data.counter();

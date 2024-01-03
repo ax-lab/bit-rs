@@ -12,6 +12,7 @@ pub enum Value<'a> {
 	SInt(i64),
 	UInt(u64),
 	Source(Source<'a>),
+	Token(Token),
 }
 
 impl<'a> Display for Value<'a> {
@@ -24,6 +25,7 @@ impl<'a> Display for Value<'a> {
 			Value::SInt(v) => write!(f, "{v}"),
 			Value::UInt(v) => write!(f, "{v}"),
 			Value::Source(src) => write!(f, "Source({src})"),
+			Value::Token(tok) => write!(f, "{tok}"),
 		}
 	}
 }
@@ -38,6 +40,7 @@ impl<'a> Debug for Value<'a> {
 			Value::SInt(v) => write!(f, "{v:?}"),
 			Value::UInt(v) => write!(f, "{v:?}"),
 			Value::Source(src) => write!(f, "{src:?}"),
+			Value::Token(tok) => write!(f, "Token::{tok:?}"),
 		}
 	}
 }

@@ -68,6 +68,20 @@ impl<'a> Cursor<'a> {
 		}
 	}
 
+	pub fn text_context(&self) -> &'a str {
+		const MAX_CHARS: usize = 10;
+		let text = self.text();
+		let index = text.find(|chr| is_space(chr) || chr == '\r' || chr == '\n');
+		let index = index.unwrap_or(text.len());
+		let text = &text[..index];
+		let index = text
+			.char_indices()
+			.nth(MAX_CHARS + 1)
+			.map(|(index, _)| index)
+			.unwrap_or(text.len());
+		&text[..index]
+	}
+
 	fn advance(&mut self, char: char) {
 		let is_indent = self.indent == self.column && is_space(char);
 		match char {

@@ -7,6 +7,7 @@ struct ContextData<'a> {
 	types: ContextCell<'a, TypeContext<'a>>,
 	sources: ContextCell<'a, SourceContext<'a>>,
 	nodes: ContextCell<'a, NodeContext<'a>>,
+	lexer: ContextCell<'a, LexerContext<'a>>,
 	ops: ContextCell<'a, OpContext<'a>>,
 }
 
@@ -15,6 +16,7 @@ impl<'a> ContextData<'a> {
 		self.types.new(ctx);
 		self.sources.new(ctx);
 		self.nodes.new(ctx);
+		self.lexer.new(ctx);
 		self.ops.new(ctx);
 	}
 
@@ -22,6 +24,7 @@ impl<'a> ContextData<'a> {
 		self.types.init();
 		self.sources.init();
 		self.nodes.init();
+		self.lexer.init();
 		self.ops.init();
 	}
 }
@@ -37,6 +40,10 @@ impl<'a> ContextRef<'a> {
 
 	pub fn nodes(&self) -> &'a NodeContext<'a> {
 		self.data().nodes.get()
+	}
+
+	pub fn lexer(&self) -> &'a LexerContext<'a> {
+		self.data().lexer.get()
 	}
 
 	pub fn ops(&self) -> &'a OpContext<'a> {

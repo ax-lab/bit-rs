@@ -33,3 +33,31 @@ impl<'a> Evaluator<'a> for DebugPrint<'a> {
 		Ok(())
 	}
 }
+
+#[derive(Debug)]
+pub struct TokenizeSource;
+
+impl<'a> Evaluator<'a> for TokenizeSource {
+	fn parse(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		let mut errors = Vec::new();
+		for it in binding.nodes() {
+			if let Value::Source(source) = it.value() {
+				let mut tokenizer = ctx.new_tokenizer()?;
+				let tokens = tokenizer.parse_source(source);
+				match tokens {
+					Ok(tokens) => {
+						for (token, span) in tokens {
+							ctx.node(Value::Token(token), span);
+						}
+					}
+					Err(err) => errors.push(err),
+				}
+			} else {
+				err!("invalid node for tokenizer operator: {it}")?;
+			}
+		}
+
+		errors.combine("lexer ")?;
+		Ok(())
+	}
+}

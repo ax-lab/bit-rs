@@ -1,16 +1,70 @@
 use super::*;
 
-pub trait Tokenizer: Clone + Default {
-	fn tokenize<'a>(&mut self, cursor: &mut Cursor<'a>) -> Vec<(Token, Span<'a>)>;
+pub struct LexerContext<'a> {
+	lexer: RwLock<Option<&'a dyn Lexer>>,
 }
 
-pub trait Grammar: Clone + Default {
+impl<'a> ContextRef<'a> {
+	pub fn set_lexer<T: Lexer + 'a>(self, lexer: T) {
+		let lexer = self.store(lexer);
+		let data = self.lexer();
+		data.lexer.write().unwrap().replace(lexer);
+	}
+
+	pub fn new_tokenizer(self) -> Result<Box<dyn Tokenizer>> {
+		let data = self.lexer();
+		let lexer = data.lexer.read().unwrap().clone();
+		if let Some(lexer) = lexer {
+			Ok(lexer.new_tokenizer())
+		} else {
+			err!("no lexer was set in the context")
+		}
+	}
+}
+
+impl<'a> IsContext<'a> for LexerContext<'a> {
+	fn new(ctx: ContextRef<'a>) -> Self {
+		let _ = ctx;
+		Self { lexer: None.into() }
+	}
+}
+
+pub trait Lexer {
+	fn new_tokenizer(&self) -> Box<dyn Tokenizer>;
+
+	fn add_symbol(&mut self, str: &str) -> Symbol;
+}
+
+pub trait LexerMethods: Lexer {
+	fn add_symbols<S: AsRef<str>, I: IntoIterator<Item = S>>(&mut self, symbols: I) {
+		for it in symbols.into_iter() {
+			self.add_symbol(it.as_ref());
+		}
+	}
+}
+
+impl<T: Lexer> LexerMethods for T {}
+
+pub trait Tokenizer: 'static {
+	fn tokenize<'a>(&mut self, cursor: &mut Cursor<'a>) -> Vec<(Token, Span<'a>)>;
+
+	fn parse_source<'a>(&mut self, source: Source<'a>) -> Result<Vec<(Token, Span<'a>)>> {
+		let mut cursor = Cursor::new(source);
+		let out = self.tokenize(&mut cursor);
+		if cursor.len() > 0 {
+			err!("invalid symbol at {cursor}: « {} »", cursor.text_context())?;
+		}
+		Ok(out)
+	}
+}
+
+pub trait Grammar: Clone + 'static {
 	fn is_space(c: char) -> bool;
 
 	fn match_next(&self, text: &str) -> Option<(Token, usize)>;
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Token {
 	None,
 	Break,
@@ -20,6 +74,29 @@ pub enum Token {
 	Float,
 	Literal,
 	Comment,
+}
+
+impl Display for Token {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		match self {
+			Token::None => write!(f, "(none)"),
+			Token::Break => write!(f, "break"),
+			Token::Symbol(s) => {
+				write!(f, "symbol(")?;
+				s.write_name(f, false)?;
+				write!(f, ")")
+			}
+			Token::Word(s) => {
+				write!(f, "word(")?;
+				s.write_name(f, false)?;
+				write!(f, ")")
+			}
+			Token::Integer => write!(f, "int"),
+			Token::Float => write!(f, "float"),
+			Token::Literal => write!(f, "literal"),
+			Token::Comment => write!(f, "comment"),
+		}
+	}
 }
 
 #[derive(Clone, Default)]
@@ -148,31 +225,41 @@ impl Grammar for DefaultGrammar {
 	}
 }
 
-#[derive(Clone, Default)]
-pub struct Lexer<T: Grammar> {
-	symbols: SymbolTable,
+pub struct GrammarLexer<T: Grammar> {
+	symbols: Arc<SymbolTable>,
 	grammar: T,
 }
 
-impl<T: Grammar> Lexer<T> {
+impl<T: Grammar> GrammarLexer<T> {
 	pub fn new(grammar: T) -> Self {
 		Self {
 			symbols: Default::default(),
 			grammar,
 		}
 	}
+}
 
-	pub fn add_symbols<S: AsRef<str>, I: IntoIterator<Item = S>>(&mut self, symbols: I) {
-		for it in symbols.into_iter() {
-			self.add_symbol(it.as_ref());
-		}
+impl<T: Grammar> Lexer for GrammarLexer<T> {
+	fn new_tokenizer(&self) -> Box<dyn Tokenizer> {
+		Box::new(GrammarTokenizer {
+			symbols: self.symbols.clone(),
+			grammar: self.grammar.clone(),
+		})
 	}
 
-	pub fn add_symbol<S: AsRef<str>>(&mut self, symbol: S) {
-		self.symbols.add_symbol(symbol.as_ref());
+	fn add_symbol(&mut self, str: &str) -> Symbol {
+		let table = Arc::make_mut(&mut self.symbols);
+		table.add_symbol(str)
 	}
+}
 
-	pub fn tokenize<'a>(&mut self, cursor: &mut Cursor<'a>) -> Vec<(Token, Span<'a>)> {
+pub struct GrammarTokenizer<T: Grammar> {
+	symbols: Arc<SymbolTable>,
+	grammar: T,
+}
+
+impl<T: Grammar> Tokenizer for GrammarTokenizer<T> {
+	fn tokenize<'a>(&mut self, cursor: &mut Cursor<'a>) -> Vec<(Token, Span<'a>)> {
 		let mut output = Vec::new();
 		while cursor.len() > 0 {
 			let text = cursor.text();
@@ -196,7 +283,6 @@ impl<T: Grammar> Lexer<T> {
 			} else if let Some((token, len)) = self.grammar.match_next(text) {
 				(token, len)
 			} else if let Some(symbol) = self.symbols.read(text) {
-				let symbol = Symbol::str(symbol);
 				(Token::Symbol(symbol), symbol.len())
 			} else {
 				break; // stop at the first unrecognized token
@@ -209,23 +295,16 @@ impl<T: Grammar> Lexer<T> {
 	}
 }
 
-impl<T: Grammar> Tokenizer for Lexer<T> {
-	fn tokenize<'a>(&mut self, cursor: &mut Cursor<'a>) -> Vec<(Token, Span<'a>)> {
-		Lexer::tokenize(self, cursor)
-	}
-}
-
 const SYMBOL_SLOTS: usize = 257;
 
 #[derive(Clone)]
 pub struct SymbolTable {
-	symbols: [Box<Vec<Box<str>>>; SYMBOL_SLOTS],
+	symbols: [Box<Vec<Symbol>>; SYMBOL_SLOTS],
 }
 
 impl SymbolTable {
 	pub fn new() -> Self {
-		let mut symbols: [MaybeUninit<Box<Vec<Box<str>>>>; SYMBOL_SLOTS] =
-			unsafe { MaybeUninit::uninit().assume_init() };
+		let mut symbols: [MaybeUninit<Box<Vec<Symbol>>>; SYMBOL_SLOTS] = unsafe { MaybeUninit::uninit().assume_init() };
 		for it in symbols.iter_mut() {
 			it.write(Default::default());
 		}
@@ -234,26 +313,27 @@ impl SymbolTable {
 		}
 	}
 
-	pub fn add_symbol(&mut self, symbol: &str) {
-		let char = symbol.chars().next().unwrap();
-		let index = (char as usize) % self.symbols.len();
+	pub fn add_symbol(&mut self, symbol: &str) -> Symbol {
+		let index = (symbol.chars().next().unwrap() as usize) % self.symbols.len();
 		let symbols = &mut self.symbols[index];
 
-		if symbols.iter().any(|x| x.as_ref() == symbol) {
-			return;
+		let symbol = Symbol::str(symbol);
+		if symbols.iter().any(|&x| x == symbol) {
+			return symbol;
 		}
 
 		symbols.push(symbol.into());
 		symbols.sort_by(|a, b| b.len().cmp(&a.len()));
+		symbol
 	}
 
-	pub fn read<'a>(&self, input: &'a str) -> Option<&'a str> {
+	pub fn read<'a>(&self, input: &'a str) -> Option<Symbol> {
 		if let Some(char) = input.chars().next() {
 			let index = (char as usize) % self.symbols.len();
 			let symbols = &self.symbols[index];
-			for it in symbols.iter() {
-				if input.starts_with(it.as_ref()) {
-					return Some(&input[..it.len()]);
+			for &it in symbols.iter() {
+				if input.as_bytes().starts_with(it.as_bytes()) {
+					return Some(it);
 				}
 			}
 		}
@@ -513,8 +593,10 @@ mod tests {
 	}
 
 	fn tokenize_str<'a>(span: Span<'a>) -> Vec<(Token, &'a str)> {
-		let mut lexer = Lexer::new(DefaultGrammar);
+		let mut lexer = GrammarLexer::new(DefaultGrammar);
 		lexer.add_symbols(["+", "++", "-", "--", "<", "<<", "<<<", "=", "==", ",", "."]);
+
+		let mut lexer = lexer.new_tokenizer();
 
 		let mut cursor = Cursor::new(span.src());
 		let out = lexer.tokenize(&mut cursor);

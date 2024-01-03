@@ -1,7 +1,7 @@
 use std::{
 	cell::{Cell, Ref, RefCell, UnsafeCell},
 	cmp::Ordering,
-	collections::HashMap,
+	collections::{HashMap, HashSet},
 	fmt::{Debug, Display, Formatter},
 	hash::Hash,
 	io::Write,
@@ -46,6 +46,17 @@ pub fn version() -> &'static str {
 	"0.1.0"
 }
 
+pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
+	let mut lexer = GrammarLexer::new(DefaultGrammar);
+	lexer.add_symbols(["(", ")", "[", "]", "{", "}", "<", ">"]);
+	lexer.add_symbols([",", ";", ".", ":"]);
+	lexer.add_symbols(["+", "-", "*", "/", "="]);
+
+	ctx.set_lexer(lexer);
+	ctx.bindings().match_any(Match::source()).bind(TokenizeSource);
+	Ok(())
+}
+
 pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
@@ -55,9 +66,34 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 
 	let nodes = bindings.get_pending();
 	if nodes.len() > 0 {
-		let nodes = nodes
+		const MAX_BY_SRC: usize = 20;
+		const MAX_TOTAL: usize = 50;
+
+		let count = nodes.len();
+		let (s, were) = if count > 1 { ("s", "were") } else { ("", "was") };
+		let mut mapped = HashSet::new();
+		let mut output = Vec::new();
+		let mut by_source = HashMap::new();
+		for node in nodes {
+			let src = node.span().src();
+			let count = by_source.entry(src).or_insert(0);
+			if *count >= MAX_BY_SRC {
+				continue;
+			}
+
+			let key = (src, node.value());
+			if mapped.insert(key) {
+				output.push(node);
+				*count += 1;
+			}
+		}
+
+		output.sort_by_key(|node| (node.span(), node.value()));
+
+		let output_len = output.len();
+		let nodes = output
 			.into_iter()
-			.take(100)
+			.take(MAX_TOTAL)
 			.map(|node| {
 				let location = node.span().location();
 				format!("- at {location}: {node}")
@@ -65,7 +101,15 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 			.collect::<Vec<_>>()
 			.join("\n");
 
-		err!("the following nodes were not processed:\n\n{nodes}")?;
+		let suffix = if count > output_len {
+			let cnt = count - output_len;
+			let s = if cnt > 1 { "s" } else { "" };
+			format!("\n\n  …skipping remaining {cnt} node{s}")
+		} else {
+			format!("")
+		};
+
+		err!("{count} node{s} {were} not processed:\n\n{nodes}{suffix}")?;
 	}
 	Ok(Value::None)
 }
