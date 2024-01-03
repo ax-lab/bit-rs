@@ -32,8 +32,8 @@ impl<'a> ContextRef<'a> {
 		&self.nodes().bindings
 	}
 
-	pub fn root_nodes(&self) -> Vec<Node<'a>> {
-		self.nodes().bindings.root_nodes()
+	pub fn root_nodes(&self, include_silent: bool) -> Vec<Node<'a>> {
+		self.nodes().bindings.root_nodes(include_silent)
 	}
 }
 
@@ -46,7 +46,7 @@ impl<'a> NodeContext<'a> {
 			nodes: Default::default(),
 			parent: Default::default(),
 			index: Default::default(),
-			is_done: false.into(),
+			status: 0.into(),
 		});
 		let node = Node { data };
 		self.reindex_node(node);
@@ -63,6 +63,9 @@ pub struct Node<'a> {
 	data: &'a NodeData<'a>,
 }
 
+const FLAG_DONE: u8 = 1;
+const FLAG_SILENT: u8 = 2;
+
 pub struct NodeData<'a> {
 	ctx: ContextRef<'a>,
 	span: Span<'a>,
@@ -70,7 +73,7 @@ pub struct NodeData<'a> {
 	nodes: Cell<&'a [Node<'a>]>,
 	parent: Cell<Option<Node<'a>>>,
 	index: Cell<usize>,
-	is_done: Cell<bool>,
+	status: Cell<u8>,
 }
 
 impl<'a> Node<'a> {
@@ -89,17 +92,13 @@ impl<'a> Node<'a> {
 
 	pub fn set_value(self, value: Value<'a>) {
 		self.data.value.set(value);
+		self.data.status.set(0);
 		self.context().nodes().reindex_node(self)
 	}
 
 	#[inline]
 	pub fn pos(self) -> usize {
 		self.data.span.pos()
-	}
-
-	#[inline]
-	pub fn span(self) -> Span<'a> {
-		self.data.span
 	}
 
 	#[inline]
@@ -153,7 +152,7 @@ impl<'a> Node<'a> {
 		self.parent().and_then(|x| x.node(prev))
 	}
 
-	pub fn insert_nodes<T: IntoIterator<Item = Node<'a>>>(self, at: usize, nodes: T)
+	pub fn insert_nodes<T: IntoIterator<Item = U>, U: Into<Node<'a>>>(self, at: usize, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,
 	{
@@ -166,7 +165,7 @@ impl<'a> Node<'a> {
 		let arena = self.data.ctx.arena();
 		let head = self.nodes()[..at].iter().copied();
 		let tail = self.nodes()[at..].iter().copied();
-		let nodes = head.chain_exact(nodes).chain_exact(tail);
+		let nodes = head.chain_exact(nodes.map(|x| x.into())).chain_exact(tail);
 		let nodes: &'a [Node<'a>] = arena.slice(nodes);
 		for (n, it) in nodes.iter().enumerate().skip(at).take(len) {
 			assert!(it.parent().is_none());
@@ -176,7 +175,7 @@ impl<'a> Node<'a> {
 		self.data.nodes.set(nodes);
 	}
 
-	pub fn append_nodes<T: IntoIterator<Item = Node<'a>>>(self, nodes: T)
+	pub fn append_nodes<T: IntoIterator<Item = U>, U: Into<Node<'a>>>(self, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,
 	{
@@ -204,8 +203,8 @@ impl<'a> Node<'a> {
 		}
 
 		for it in removed {
+			// NOTE: don't touch the index since it may be required by an operator
 			it.data.parent.set(None);
-			it.data.index.set(0);
 		}
 
 		let nodes = if sta == 0 {
@@ -232,16 +231,36 @@ impl<'a> Node<'a> {
 		todo!()
 	}
 
+	pub fn silence(self) {
+		self.set_status(FLAG_SILENT, true);
+	}
+
+	pub fn is_silent(self) -> bool {
+		self.get_status(FLAG_SILENT)
+	}
+
 	pub fn keep_alive(self) {
-		self.data.is_done.set(false);
+		self.set_status(FLAG_DONE, false);
 	}
 
 	pub fn flag_done(self) {
-		self.data.is_done.set(true);
+		self.set_status(FLAG_DONE, true);
 	}
 
 	pub fn is_done(self) -> bool {
-		self.data.is_done.get()
+		self.get_status(FLAG_DONE)
+	}
+
+	#[inline]
+	fn get_status(self, flag: u8) -> bool {
+		self.data.status.get() & flag > 0
+	}
+
+	#[inline]
+	fn set_status(self, flag: u8, bit: bool) {
+		let status = self.data.status.get();
+		let status = if bit { status | flag } else { status & !flag };
+		self.data.status.set(status);
 	}
 
 	fn as_ptr(self) -> *const NodeData<'a> {
@@ -264,6 +283,26 @@ impl<'a> Node<'a> {
 				it.check_node(true);
 			}
 		}
+	}
+}
+
+impl<'a> HasSpan<'a> for Node<'a> {
+	#[inline]
+	fn span(&self) -> Span<'a> {
+		self.data.span
+	}
+}
+
+impl<'a> HasSpan<'a> for &Node<'a> {
+	#[inline]
+	fn span(&self) -> Span<'a> {
+		self.data.span
+	}
+}
+
+impl<'a> From<&Node<'a>> for Node<'a> {
+	fn from(value: &Node<'a>) -> Self {
+		*value
 	}
 }
 
@@ -299,7 +338,7 @@ impl<'a> Writable for Node<'a> {
 
 				let span = it.span();
 				if !span.is_empty() {
-					write!(f, "\n    »» {span}")?;
+					write!(f, "\n... at {span}")?;
 				}
 			}
 			f.dedent();
@@ -319,9 +358,9 @@ impl<'a> PartialEq for Node<'a> {
 
 impl<'a> Ord for Node<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
-		self.value()
-			.cmp(&other.value())
-			.then_with(|| self.span().cmp(&other.span()))
+		self.span()
+			.cmp(&other.span())
+			.then_with(|| self.value().cmp(&other.value()))
 	}
 }
 

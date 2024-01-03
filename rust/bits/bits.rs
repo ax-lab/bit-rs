@@ -53,7 +53,14 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	lexer.add_symbols(["+", "-", "*", "/", "="]);
 
 	ctx.set_lexer(lexer);
-	ctx.bindings().match_any(Match::source()).bind(TokenizeSource);
+	ctx.bindings()
+		.match_any(Match::source())
+		.with_precedence(Value::SInt(0))
+		.bind(TokenizeSource);
+	ctx.bindings()
+		.match_any(Match::exact(Value::Token(Token::Break)))
+		.with_precedence(Value::SInt(1))
+		.bind(SplitLine);
 	Ok(())
 }
 
@@ -116,7 +123,7 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 
 pub fn dump_nodes(f: &mut Writer, ctx: ContextRef) -> Result<()> {
 	let mut cur_src = None;
-	for node in ctx.root_nodes() {
+	for node in ctx.root_nodes(false) {
 		let src = node.span().src();
 		if Some(src) != cur_src {
 			cur_src = Some(src);

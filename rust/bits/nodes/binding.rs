@@ -55,21 +55,31 @@ enum Key<'a> {
 }
 
 impl<'a> Key<'a> {
-	pub fn for_value(value: Value<'a>) -> [Key<'a>; MAX_KEYS] {
-		match value {
+	pub fn for_value(v: Value<'a>) -> [Key<'a>; MAX_KEYS] {
+		match v {
 			Value::None => Default::default(),
-			Value::Unit => Self::one(Self::kind(value)),
-			Value::Bool(_) => Self::one(Self::kind(value)),
-			Value::Str(_) => Self::two(Self::Exact(value), Self::kind(value)),
-			Value::SInt(_) => Self::one(Self::kind(value)),
-			Value::UInt(_) => Self::one(Self::kind(value)),
-			Value::Source(_) => Self::one(Self::kind(value)),
-			Value::Module(_) => Self::one(Self::kind(value)),
-			Value::Token(_) => Self::two(Self::Exact(value), Self::kind(value)),
+			Value::Unit => Self::as_kind(v),
+			Value::Bool(_) => Self::as_kind(v),
+			Value::SInt(_) => Self::as_kind(v),
+			Value::UInt(_) => Self::as_kind(v),
+			Value::Source(_) => Self::as_kind(v),
+			Value::Module(_) => Self::as_kind(v),
+			Value::Group => Self::as_kind(v),
+
+			Value::Token(_) => Self::as_value(v),
+			Value::Str(_) => Self::as_value(v),
 		}
 	}
 
-	fn kind(v: Value<'a>) -> Self {
+	fn as_kind<const N: usize>(v: Value<'a>) -> [Self; N] {
+		Self::one(Self::kind_of(v))
+	}
+
+	fn as_value<const N: usize>(v: Value<'a>) -> [Self; N] {
+		Self::two(Self::Exact(v), Self::kind_of(v))
+	}
+
+	fn kind_of(v: Value<'a>) -> Self {
 		Self::KindOf(discriminant(&v))
 	}
 
@@ -93,6 +103,7 @@ pub struct BoundNodes<'a> {
 	src: Source<'a>,
 	value: &'a BoundValue<'a>,
 	nodes: Vec<Node<'a>>,
+	sorted_by_parent: bool,
 }
 
 impl<'a> BoundNodes<'a> {
@@ -123,6 +134,47 @@ impl<'a> BoundNodes<'a> {
 	pub fn len(&self) -> usize {
 		self.end - self.sta
 	}
+
+	pub fn by_parent<'b>(&'b mut self) -> ParentNodes<'a, 'b> {
+		if !self.sorted_by_parent {
+			self.nodes.sort_by_key(|node| (node.parent(), node.index(), *node));
+			self.sorted_by_parent = true;
+		}
+		let parent = ParentNodes {
+			nodes: &self.nodes,
+			index: 0,
+		};
+		parent
+	}
+}
+
+pub struct ParentNodes<'a, 'b> {
+	nodes: &'b [Node<'a>],
+	index: usize,
+}
+
+impl<'a, 'b> Iterator for ParentNodes<'a, 'b> {
+	type Item = (Node<'a>, &'b [Node<'a>]);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		loop {
+			break if let Some(&node) = self.nodes.get(self.index) {
+				let nodes = &self.nodes[self.index..];
+				let count = nodes.partition_point(|x| x.parent() == node.parent());
+				let nodes = &nodes[..count];
+				debug_assert!(nodes.len() >= 1);
+
+				self.index += nodes.len();
+				if let Some(parent) = node.parent() {
+					Some((parent, nodes))
+				} else {
+					continue;
+				}
+			} else {
+				None
+			};
+		}
+	}
 }
 
 pub struct Bindings<'a> {
@@ -140,7 +192,7 @@ impl<'a> Bindings<'a> {
 		}
 	}
 
-	pub fn root_nodes(&self) -> Vec<Node<'a>> {
+	pub fn root_nodes(&self, include_silent: bool) -> Vec<Node<'a>> {
 		let by_source = &self.by_source.read().unwrap();
 		let mut root_nodes = HashSet::new();
 		for (_, by_src) in by_source.iter() {
@@ -152,7 +204,9 @@ impl<'a> Bindings<'a> {
 					while let Some(par) = cur.parent() {
 						cur = par;
 					}
-					root_nodes.insert(cur);
+					if include_silent || !cur.is_silent() {
+						root_nodes.insert(cur);
+					}
 				}
 			}
 		}
@@ -216,6 +270,7 @@ impl<'a> Bindings<'a> {
 					src,
 					value,
 					nodes,
+					sorted_by_parent: false,
 				});
 			}
 		}

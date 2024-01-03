@@ -50,6 +50,7 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 							.into_iter()
 							.map(|(token, span)| ctx.node(Value::Token(token), span));
 						it.set_value(Value::Module(source));
+						it.flag_done();
 						it.append_nodes(tokens);
 					}
 					Err(err) => errors.push(err),
@@ -60,6 +61,41 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 		}
 
 		errors.combine("lexer ")?;
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct SplitLine;
+
+impl<'a> Evaluator<'a> for SplitLine {
+	fn parse(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (parent, targets) in binding.by_parent() {
+			let old_nodes = parent.remove_nodes(..);
+			let mut new_nodes = Vec::new();
+
+			let mut push = |nodes: &[Node<'a>]| {
+				if nodes.len() > 0 {
+					let span = Span::range(nodes);
+					let node = ctx.node(Value::Group, span);
+					node.append_nodes(nodes);
+					node.flag_done();
+					new_nodes.push(node);
+				}
+			};
+
+			let mut cur = 0;
+			for it in targets {
+				it.silence();
+				let index = it.index();
+				let nodes = &old_nodes[cur..index];
+				cur = index + 1;
+				push(nodes);
+			}
+
+			push(&old_nodes[cur..]);
+			parent.append_nodes(new_nodes);
+		}
 		Ok(())
 	}
 }

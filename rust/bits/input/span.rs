@@ -9,6 +9,10 @@ pub struct Span<'a> {
 	src: Source<'a>,
 }
 
+pub trait HasSpan<'a> {
+	fn span(&self) -> Span<'a>;
+}
+
 impl<'a> Span<'a> {
 	pub(crate) fn new(src: Source<'a>, sta: usize, end: usize, ind: usize) -> Self {
 		assert!(sta <= end && end <= src.len());
@@ -17,6 +21,43 @@ impl<'a> Span<'a> {
 
 	pub fn empty() -> Self {
 		Self::default()
+	}
+
+	pub fn range<T: IntoIterator<Item = U>, U: HasSpan<'a>>(elems: T) -> Span<'a> {
+		let mut iter = elems.into_iter();
+		if let Some(first) = iter.next() {
+			let first = first.span();
+			if let Some(last) = iter.last() {
+				let last = last.span();
+				Self::merge(first, last)
+			} else {
+				first
+			}
+		} else {
+			Span::empty()
+		}
+	}
+
+	pub fn merge(a: Self, b: Self) -> Self {
+		if a.is_empty() {
+			return b;
+		}
+		if b.is_empty() {
+			return a;
+		}
+
+		assert_eq!(a.src, b.src);
+		let (a, b) = if a.sta <= b.sta { (a, b) } else { (b, a) };
+		Self {
+			sta: a.sta,
+			ind: a.ind,
+			end: std::cmp::max(a.end, b.end),
+			src: a.src,
+		}
+	}
+
+	pub fn merged(self, other: Self) -> Self {
+		Self::merge(self, other)
 	}
 
 	pub fn src(&self) -> Source<'a> {
@@ -44,7 +85,7 @@ impl<'a> Span<'a> {
 	}
 
 	pub fn is_empty(&self) -> bool {
-		self.len() == 0 && self.pos() == 0 && self.src == Source::empty()
+		self.sta == 0 && self.end == 0 && self.ind == 0 && self.src == Source::empty()
 	}
 
 	pub fn location(&self) -> Cursor<'a> {
