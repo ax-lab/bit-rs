@@ -30,9 +30,9 @@ pub trait Evaluator<'a>: Debug {
 }
 
 #[derive(Debug)]
-pub struct NoOp;
+pub struct Output;
 
-impl<'a> Evaluator<'a> for NoOp {
+impl<'a> Evaluator<'a> for Output {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = (ctx, binding);
 		Ok(())

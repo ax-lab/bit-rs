@@ -51,21 +51,29 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	lexer.add_symbols(["(", ")", "[", "]", "{", "}", "<", ">"]);
 	lexer.add_symbols([",", ";", ".", ":"]);
 	lexer.add_symbols(["+", "-", "*", "/", "="]);
-
 	ctx.set_lexer(lexer);
-	ctx.bindings()
+
+	let bindings = ctx.bindings();
+
+	bindings
 		.match_any(Match::source())
 		.with_precedence(Value::SInt(0))
 		.bind(TokenizeSource);
-	ctx.bindings()
+
+	bindings
 		.match_any(Match::exact(Value::Token(Token::Break)))
 		.with_precedence(Value::SInt(1))
 		.bind(SplitLine);
 
-	ctx.bindings()
+	bindings
 		.match_any(Match::word("print"))
 		.with_precedence(Value::SInt(2))
 		.bind(Print);
+
+	bindings
+		.match_any(Match::token(Token::Literal))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(Output);
 
 	Ok(())
 }

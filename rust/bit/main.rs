@@ -2,14 +2,21 @@ use bits::*;
 
 use std::io::Write;
 
+#[derive(Default)]
+struct Args {
+	show_stats: bool,
+	show_dump: bool,
+}
+
 fn main() {
-	if let Err(err) = run(false) {
+	let args = Args::default();
+	if let Err(err) = run(args) {
 		eprintln!("\nError: {}\n", err.detailed());
 		std::process::exit(1);
 	}
 }
 
-fn run(mut show_stats: bool) -> Result<()> {
+fn run(mut args: Args) -> Result<()> {
 	let ctx = Context::new();
 	let ctx = ctx.get();
 	init_context(ctx)?;
@@ -17,7 +24,13 @@ fn run(mut show_stats: bool) -> Result<()> {
 	let sources = ctx.sources();
 	for arg in std::env::args().skip(1) {
 		if arg == "--mem" || arg == "--stats" {
-			show_stats = true;
+			args.show_stats = true;
+			continue;
+		}
+
+		if arg == "--dump" {
+			args.show_dump = true;
+			args.show_stats = true;
 			continue;
 		}
 
@@ -27,13 +40,13 @@ fn run(mut show_stats: bool) -> Result<()> {
 
 	let value = process(ctx);
 
-	if show_stats || value.is_err() {
+	if args.show_stats || value.is_err() {
 		let stats = Arena::stats();
 		let used = stats.used();
 		let size = stats.size();
 		let max_used = stats.max_used();
 		let max_size = stats.max_size();
-		let mut out = if show_stats && !value.is_err() {
+		let mut out = if args.show_stats && !value.is_err() {
 			Writer::stdout()
 		} else {
 			Writer::stderr()
@@ -46,7 +59,7 @@ fn run(mut show_stats: bool) -> Result<()> {
 		let _ = write!(out, ")\n");
 	}
 
-	if value.is_err() {
+	if value.is_err() || args.show_dump {
 		let mut out = Writer::stderr();
 		let _ = write!(out, "\n========== PROGRAM DUMP ==========\n");
 		let _ = dump_nodes(&mut Writer::stderr(), ctx);

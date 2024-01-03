@@ -2,12 +2,11 @@ use std::mem::{discriminant, Discriminant};
 
 use super::*;
 
-const MAX_KEYS: usize = 2;
-
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Match<'a> {
 	Exact(Value<'a>),
 	KindOf(Discriminant<Value<'a>>),
+	Token(Discriminant<Token>),
 }
 
 impl<'a> Match<'a> {
@@ -21,6 +20,10 @@ impl<'a> Match<'a> {
 
 	pub fn word<T: Into<Symbol>>(word: T) -> Self {
 		Self::Exact(Value::Token(Token::Word(word.into())))
+	}
+
+	pub fn token(token: Token) -> Self {
+		Self::Token(discriminant(&token))
 	}
 
 	pub fn unit() -> Self {
@@ -40,9 +43,17 @@ impl<'a> Match<'a> {
 	}
 
 	pub fn matches(self, node: Node<'a>) -> bool {
+		let key = node.key();
 		match self {
-			Match::Exact(v) => node.key() == v,
-			Match::KindOf(v) => discriminant(&node.key()) == v,
+			Match::Exact(v) => key == v,
+			Match::KindOf(v) => discriminant(&key) == v,
+			Match::Token(v) => {
+				if let Value::Token(token) = key {
+					v == discriminant(&token)
+				} else {
+					false
+				}
+			}
 		}
 	}
 
@@ -50,6 +61,7 @@ impl<'a> Match<'a> {
 		match self {
 			&Match::Exact(v) => Key::Exact(v),
 			&Match::KindOf(v) => Key::KindOf(v),
+			&Match::Token(v) => Key::Token(v),
 		}
 	}
 }
@@ -60,7 +72,10 @@ enum Key<'a> {
 	None,
 	Exact(Value<'a>),
 	KindOf(Discriminant<Value<'a>>),
+	Token(Discriminant<Token>),
 }
+
+const MAX_KEYS: usize = 3;
 
 impl<'a> Key<'a> {
 	pub fn for_value(v: Value<'a>) -> [Key<'a>; MAX_KEYS] {
@@ -75,8 +90,9 @@ impl<'a> Key<'a> {
 			Value::Group => Self::as_kind(v),
 			Value::Print => Self::as_kind(v),
 
-			Value::Token(_) => Self::as_value(v),
 			Value::Str(_) => Self::as_value(v),
+
+			Value::Token(token) => Self::three(Self::Exact(v), Self::Token(discriminant(&token)), Self::kind_of(v)),
 		}
 	}
 
@@ -102,6 +118,14 @@ impl<'a> Key<'a> {
 		let mut out: [Self; N] = [Default::default(); N];
 		out[0] = a;
 		out[1] = b;
+		out
+	}
+
+	fn three<const N: usize>(a: Self, b: Self, c: Self) -> [Self; N] {
+		let mut out: [Self; N] = [Default::default(); N];
+		out[0] = a;
+		out[1] = b;
+		out[2] = c;
 		out
 	}
 }
