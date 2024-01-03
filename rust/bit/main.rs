@@ -6,6 +6,7 @@ use std::io::Write;
 struct Args {
 	show_stats: bool,
 	show_dump: bool,
+	show_result: bool,
 }
 
 fn main() {
@@ -19,6 +20,7 @@ fn main() {
 fn run(mut args: Args) -> Result<()> {
 	let ctx = Context::new();
 	let ctx = ctx.get();
+	let out = Writer::stdout();
 	init_context(ctx)?;
 
 	let sources = ctx.sources();
@@ -31,6 +33,7 @@ fn run(mut args: Args) -> Result<()> {
 		if arg == "--dump" {
 			args.show_dump = true;
 			args.show_stats = true;
+			args.show_result = true;
 			continue;
 		}
 
@@ -38,7 +41,7 @@ fn run(mut args: Args) -> Result<()> {
 		ctx.node(Value::Source(src), src.span());
 	}
 
-	let value = process(ctx);
+	let value = execute(ctx, out);
 
 	if args.show_stats || value.is_err() {
 		let stats = Arena::stats();
@@ -67,7 +70,9 @@ fn run(mut args: Args) -> Result<()> {
 	}
 
 	let value = value?;
-	println!("\nResult = {value:?}\n");
+	if args.show_result {
+		println!("\nResult = {value:?}\n");
+	}
 
 	Ok(())
 }

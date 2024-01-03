@@ -63,6 +63,7 @@ pub struct Writer<'a> {
 struct WriteState {
 	new_line: AtomicBool,
 	was_cr: AtomicBool,
+	written: AtomicUsize,
 }
 
 impl WriteState {
@@ -91,6 +92,10 @@ impl<'a> Writer<'a> {
 			state: Default::default(),
 			debug: false,
 		}
+	}
+
+	pub fn written(&self) -> usize {
+		self.state.written.load(SyncOrder::Relaxed)
 	}
 
 	pub fn fmt<T: std::fmt::Write + 'a>(output: &'a mut T) -> Self {
@@ -171,14 +176,17 @@ impl<'a> Write for Writer<'a> {
 		let mut output = self.output.lock().unwrap();
 		let indent = self.indent.as_bytes();
 
-		let mut push = |bytes: &[u8], indented: bool| {
+		let mut push = |bytes: &[u8], indented: bool| -> std::io::Result<usize> {
 			if let Some(&last) = bytes.last() {
 				if indented && self.state.new_line() {
 					output.write(indent)?;
+					self.state.written.fetch_add(indent.len(), SyncOrder::Relaxed);
 				}
 				self.state.set_new_line(last == CR || last == LF);
 				self.state.set_was_cr(last == CR);
-				output.write(bytes)
+				let len = output.write(bytes)?;
+				self.state.written.fetch_add(bytes.len(), SyncOrder::Relaxed);
+				Ok(len)
 			} else {
 				Ok(0)
 			}

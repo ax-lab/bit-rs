@@ -24,15 +24,17 @@ pub use values::*;
 pub mod nodes;
 pub use nodes::*;
 
-pub mod context;
-pub use context::*;
+pub mod code;
+pub use code::*;
 
+pub mod context;
 pub mod core;
 pub mod eval;
 pub mod input;
 pub mod ops;
 pub mod result;
 
+pub use context::*;
 pub use core::*;
 pub use eval::*;
 pub use input::*;
@@ -41,6 +43,8 @@ pub use result::*;
 
 pub mod mem;
 pub use mem::*;
+
+const DEBUG_CODE: bool = false;
 
 pub fn version() -> &'static str {
 	"0.1.0"
@@ -78,7 +82,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	Ok(())
 }
 
-pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
+pub fn execute<'a>(ctx: ContextRef<'a>, out: Writer<'a>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();
@@ -132,7 +136,27 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 
 		err!("{count} node{s} {were} not processed:\n\n{nodes}{suffix}")?;
 	}
-	Ok(Value::None)
+
+	let nodes = bindings.root_nodes(false);
+	let mut program = Vec::new();
+	for it in nodes {
+		let code = it.compile()?;
+		program.push(code);
+	}
+
+	if DEBUG_CODE {
+		println!("\n========== PROGRAM ==========");
+		println!("\n{program:#?}");
+		println!("\n=============================\n");
+	}
+
+	let mut rt = Runtime::new(ctx, out);
+	let mut output = Value::None;
+	for it in program {
+		output = it.execute(&mut rt)?;
+	}
+
+	Ok(output)
 }
 
 pub fn dump_nodes(f: &mut Writer, ctx: ContextRef) -> Result<()> {
