@@ -64,6 +64,7 @@ impl<'a> Key<'a> {
 			Value::SInt(_) => Self::one(Self::kind(value)),
 			Value::UInt(_) => Self::one(Self::kind(value)),
 			Value::Source(_) => Self::one(Self::kind(value)),
+			Value::Module(_) => Self::one(Self::kind(value)),
 			Value::Token(_) => Self::two(Self::Exact(value), Self::kind(value)),
 		}
 	}
@@ -123,6 +124,28 @@ impl<'a> Bindings<'a> {
 			by_source: Default::default(),
 			segment_heap: Default::default(),
 		}
+	}
+
+	pub fn root_nodes(&self) -> Vec<Node<'a>> {
+		let by_source = &self.by_source.read().unwrap();
+		let mut root_nodes = HashSet::new();
+		for (_, by_src) in by_source.iter() {
+			let by_key = by_src.by_key.read().unwrap();
+			for it in by_key.values() {
+				let nodes = it.nodes.borrow();
+				for node in nodes.iter() {
+					let mut cur = *node;
+					while let Some(par) = cur.parent() {
+						cur = par;
+					}
+					root_nodes.insert(cur);
+				}
+			}
+		}
+
+		let mut root_nodes = root_nodes.into_iter().collect::<Vec<_>>();
+		root_nodes.sort_by_key(|node| (node.span(), node.value()));
+		root_nodes
 	}
 
 	pub fn add(&self, key: Value<'a>, node: Node<'a>) {

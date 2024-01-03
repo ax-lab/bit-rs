@@ -12,6 +12,7 @@ pub enum Value<'a> {
 	SInt(i64),
 	UInt(u64),
 	Source(Source<'a>),
+	Module(Source<'a>),
 	Token(Token),
 }
 
@@ -25,6 +26,7 @@ impl<'a> Display for Value<'a> {
 			Value::SInt(v) => write!(f, "{v}"),
 			Value::UInt(v) => write!(f, "{v}"),
 			Value::Source(src) => write!(f, "Source({src})"),
+			Value::Module(src) => write!(f, "Module({src})"),
 			Value::Token(tok) => write!(f, "{tok}"),
 		}
 	}
@@ -40,8 +42,15 @@ impl<'a> Debug for Value<'a> {
 			Value::SInt(v) => write!(f, "{v:?}"),
 			Value::UInt(v) => write!(f, "{v:?}"),
 			Value::Source(src) => write!(f, "{src:?}"),
+			Value::Module(src) => write!(f, "{src:?}"),
 			Value::Token(tok) => write!(f, "Token::{tok:?}"),
 		}
+	}
+}
+
+impl<'a> Writable for Value<'a> {
+	fn write(&self, f: &mut Writer) -> Result<()> {
+		self.write_fmt(f)
 	}
 }
 

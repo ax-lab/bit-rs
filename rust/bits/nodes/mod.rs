@@ -31,6 +31,10 @@ impl<'a> ContextRef<'a> {
 	pub fn bindings(&self) -> &'a Bindings<'a> {
 		&self.nodes().bindings
 	}
+
+	pub fn root_nodes(&self) -> Vec<Node<'a>> {
+		self.nodes().bindings.root_nodes()
+	}
 }
 
 impl<'a> NodeContext<'a> {
@@ -277,6 +281,31 @@ impl<'a> Debug for Node<'a> {
 		} else {
 			write!(f, "{:?}", self.value())
 		}
+	}
+}
+
+impl<'a> Writable for Node<'a> {
+	fn write(&self, f: &mut Writer) -> Result<()> {
+		self.value().write_fmt(f)?;
+
+		let nodes = self.nodes();
+		if nodes.len() > 0 {
+			let mut f = f.indented();
+			write!(f, " {{")?;
+			for (n, it) in nodes.iter().enumerate() {
+				write!(f, "\n")?;
+				write!(f, "[{n}] ")?;
+				it.write(&mut f)?;
+
+				let span = it.span();
+				if !span.is_empty() {
+					write!(f, "\n    »» {span}")?;
+				}
+			}
+			f.dedent();
+			write!(f, "\n}}")?;
+		}
+		Ok(())
 	}
 }
 

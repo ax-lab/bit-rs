@@ -4,11 +4,59 @@ const DEFAULT_INDENT: &'static str = "    ";
 const CR: u8 = '\r' as u8;
 const LF: u8 = '\n' as u8;
 
+pub trait Writable {
+	fn write(&self, f: &mut Writer) -> Result<()>;
+
+	fn write_fmt(&self, f: &mut Writer) -> Result<()>
+	where
+		Self: Display + Debug,
+	{
+		if f.is_debug() {
+			self.fmt_debug(f)
+		} else {
+			self.fmt_display(f)
+		}
+	}
+
+	fn fmt_display(&self, f: &mut Writer) -> Result<()>
+	where
+		Self: Display,
+	{
+		write!(f, "{self}")?;
+		Ok(())
+	}
+
+	fn fmt_debug(&self, f: &mut Writer) -> Result<()>
+	where
+		Self: Debug,
+	{
+		write!(f, "{self:?}")?;
+		Ok(())
+	}
+
+	fn get_repr(&self) -> String {
+		let mut out = String::new();
+		let mut f = Writer::fmt(&mut out);
+		let _ = self.write(&mut f);
+		drop(f);
+		out
+	}
+
+	fn format(&self, f: &mut Formatter) -> std::fmt::Result {
+		let mut out = Writer::fmt(f);
+		match self.write(&mut out) {
+			Ok(_) => Ok(()),
+			Err(_) => Err(std::fmt::Error),
+		}
+	}
+}
+
 #[derive(Clone)]
 pub struct Writer<'a> {
 	output: Arc<Mutex<dyn Write + 'a>>,
 	indent: Arc<String>,
 	state: Arc<WriteState>,
+	debug: bool,
 }
 
 #[derive(Default)]
@@ -41,25 +89,64 @@ impl<'a> Writer<'a> {
 			output: Arc::new(Mutex::new(input)),
 			indent: Default::default(),
 			state: Default::default(),
+			debug: false,
 		}
 	}
 
-	pub fn str(buffer: &'a mut String) -> Self {
-		let writer = StringWriter { buffer };
+	pub fn fmt<T: std::fmt::Write + 'a>(output: &'a mut T) -> Self {
+		let writer = FormatWriter { output };
 		Self::new(writer)
+	}
+
+	pub fn stderr() -> Self {
+		Self::new(std::io::stderr())
+	}
+
+	pub fn stdout() -> Self {
+		Self::new(std::io::stdout())
+	}
+
+	pub fn indent(&mut self) {
+		self.indent_with(DEFAULT_INDENT)
+	}
+
+	pub fn dedent(&mut self) {
+		self.dedent_with(DEFAULT_INDENT)
+	}
+
+	pub fn indent_with<T: AsRef<str>>(&mut self, prefix: T) {
+		let prefix = prefix.as_ref();
+		if prefix.len() > 0 {
+			let indent = Arc::make_mut(&mut self.indent);
+			indent.push_str(prefix);
+		}
+	}
+
+	pub fn dedent_with<T: AsRef<str>>(&mut self, suffix: T) {
+		let suffix = suffix.as_ref();
+		if suffix.len() > 0 && self.indent.ends_with(suffix) {
+			let indent = Arc::make_mut(&mut self.indent);
+			indent.truncate(indent.len() - suffix.len());
+		}
 	}
 
 	pub fn indented(&self) -> Self {
 		self.indented_with(DEFAULT_INDENT)
 	}
 
+	pub fn is_debug(&self) -> bool {
+		self.debug
+	}
+
+	pub fn debug(&self) -> Self {
+		let mut out = self.clone();
+		out.debug = true;
+		out
+	}
+
 	pub fn indented_with<T: AsRef<str>>(&self, prefix: T) -> Self {
 		let mut out = self.clone();
-		let prefix = prefix.as_ref();
-		if prefix.len() > 0 {
-			let indent = Arc::make_mut(&mut out.indent);
-			indent.push_str(prefix);
-		}
+		out.indent_with(prefix);
 		out
 	}
 }
@@ -122,15 +209,17 @@ impl<'a> Write for Writer<'a> {
 	}
 }
 
-struct StringWriter<'a> {
-	buffer: &'a mut String,
+struct FormatWriter<'a> {
+	output: &'a mut dyn std::fmt::Write,
 }
 
-impl<'a> Write for StringWriter<'a> {
+impl<'a> Write for FormatWriter<'a> {
 	fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
 		let buf = std::str::from_utf8(buf).expect("invalid UTF-8 for string writer");
-		self.buffer.push_str(buf);
-		Ok(buf.len())
+		match self.output.write_str(buf) {
+			Ok(_) => Ok(buf.len()),
+			Err(err) => Err(std::io::Error::new(std::io::ErrorKind::Other, err)),
+		}
 	}
 
 	fn flush(&mut self) -> std::io::Result<()> {
@@ -146,7 +235,7 @@ mod tests {
 	pub fn basic_write() -> std::io::Result<()> {
 		let mut out = String::new();
 		{
-			let mut w = Writer::str(&mut out);
+			let mut w = Writer::fmt(&mut out);
 			write!(w, "hello world!!!")?;
 		}
 		assert_eq!("hello world!!!", out);
@@ -158,7 +247,7 @@ mod tests {
 		// full write
 		let mut out = String::new();
 		{
-			let mut w = Writer::str(&mut out).indented();
+			let mut w = Writer::fmt(&mut out).indented();
 			write!(w, "Head:\nLine 1\nLine 2\n")?;
 		}
 		assert_eq!("Head:\n    Line 1\n    Line 2\n", out);
@@ -166,7 +255,7 @@ mod tests {
 		// split write after new-line
 		let mut out = String::new();
 		{
-			let mut w = Writer::str(&mut out);
+			let mut w = Writer::fmt(&mut out);
 			write!(w, "Head(\n")?;
 			{
 				let mut w = w.indented();
@@ -183,14 +272,14 @@ mod tests {
 	pub fn write_crlf() -> std::io::Result<()> {
 		let mut out = String::new();
 		{
-			let mut w = Writer::str(&mut out).indented();
+			let mut w = Writer::fmt(&mut out).indented();
 			write!(w, "Head:\r\nLine 1\r\nLine 2\r")?;
 		}
 		assert_eq!("Head:\n    Line 1\n    Line 2\n", out);
 
 		let mut out = String::new();
 		{
-			let mut w = Writer::str(&mut out);
+			let mut w = Writer::fmt(&mut out);
 			write!(w, "Head(\r\n")?;
 			{
 				let mut w = w.indented();

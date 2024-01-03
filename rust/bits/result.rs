@@ -214,3 +214,15 @@ impl Debug for ErrorInfo {
 		(self.debug_fn)(&self.value, f)
 	}
 }
+
+impl From<std::io::Error> for Error {
+	fn from(value: std::io::Error) -> Self {
+		value.to_error()
+	}
+}
+
+impl From<std::fmt::Error> for Error {
+	fn from(value: std::fmt::Error) -> Self {
+		value.to_error()
+	}
+}

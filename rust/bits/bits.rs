@@ -113,3 +113,21 @@ pub fn process<'a>(ctx: ContextRef<'a>) -> Result<Value<'a>> {
 	}
 	Ok(Value::None)
 }
+
+pub fn dump_nodes(f: &mut Writer, ctx: ContextRef) -> Result<()> {
+	let mut cur_src = None;
+	for node in ctx.root_nodes() {
+		let src = node.span().src();
+		if Some(src) != cur_src {
+			cur_src = Some(src);
+			write!(f, "\n>>> {src:?} <<<\n")?;
+		}
+
+		let mut f = f.indented();
+		write!(f, "\n-> {}:\n\n", node.span())?;
+
+		node.write(&mut f.indented())?;
+		write!(f, "\n")?;
+	}
+	Ok(())
+}

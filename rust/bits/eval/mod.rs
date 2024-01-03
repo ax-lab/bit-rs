@@ -46,9 +46,11 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 				let tokens = tokenizer.parse_source(source);
 				match tokens {
 					Ok(tokens) => {
-						for (token, span) in tokens {
-							ctx.node(Value::Token(token), span);
-						}
+						let tokens = tokens
+							.into_iter()
+							.map(|(token, span)| ctx.node(Value::Token(token), span));
+						it.set_value(Value::Module(source));
+						it.append_nodes(tokens);
 					}
 					Err(err) => errors.push(err),
 				}

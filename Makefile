@@ -1,4 +1,4 @@
-.PHONY: all build test test-cargo test-script test-release test-go
+.PHONY: all build test test-cargo test-bit test-release test-go
 
 all: build
 
@@ -6,7 +6,7 @@ build:
 	@ go build ./go/bit-wrapper/bit.go
 	@ cargo  build --all --manifest-path rust/Cargo.toml $(cargo)
 
-test: test-cargo test-script
+test: test-cargo test-bit
 	@echo
 	@echo ======================================================
 	@echo Tests passed!!!
@@ -21,7 +21,7 @@ test-cargo:
 	@echo
 	@ ./cargo-test --all
 
-test-script:
+test-bit:
 	@echo
 	@echo ------------------------------------------------------
 	@echo :: Script tests
