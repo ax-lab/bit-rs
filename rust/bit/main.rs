@@ -94,8 +94,13 @@ mod tests {
 	use super::*;
 
 	#[test]
-	fn simple_value() -> Result<()> {
+	fn simple_string() -> Result<()> {
 		check(Value::Str("abc"), "", "'abc'")
+	}
+
+	#[test]
+	fn simple_int() -> Result<()> {
+		check(Value::SInt(42), "", "42")
 	}
 
 	#[test]

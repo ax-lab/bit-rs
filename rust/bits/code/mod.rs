@@ -87,6 +87,7 @@ impl<'a> Code<'a> {
 
 impl<'a> Node<'a> {
 	pub fn compile(self) -> Result<Code<'a>> {
+		let span = self.span();
 		let expr = match self.value() {
 			Value::None => Expr::None,
 			Value::Unit => Expr::Unit,
@@ -95,9 +96,14 @@ impl<'a> Node<'a> {
 			Value::SInt(v) => Expr::SInt(v),
 			Value::UInt(v) => Expr::UInt(v),
 			Value::Source(_) => Expr::None,
+			Value::Token(Token::Integer) => {
+				let val = span.text();
+				let val = parse_int(val, 10)?;
+				Expr::SInt(val)
+			}
 			Value::Token(Token::Literal) => {
 				// TODO: properly parse string
-				let str = self.span().text();
+				let str = span.text();
 				let str = &str[1..str.len() - 1];
 				Expr::Str(str)
 			}
@@ -148,4 +154,20 @@ impl<'a> Debug for Code<'a> {
 		let span = self.span;
 		write!(f, "# from {span}:\n{expr:#?}")
 	}
+}
+
+pub fn parse_int<T: AsRef<str>>(value: T, base: i64) -> Result<i64> {
+	let mut out = 0;
+	for chr in value.as_ref().chars() {
+		let val = chr as i64;
+		let digit = match chr {
+			'_' => continue,
+			'0'..='9' => val - ('0' as i64),
+			'a'..='f' => 0xA + (val - ('a' as i64)),
+			'A'..='F' => 0xA + (val - ('A' as i64)),
+			_ => err!("invalid digit `{chr}` in numeric literal")?,
+		};
+		out = out * base + digit;
+	}
+	Ok(out)
 }
