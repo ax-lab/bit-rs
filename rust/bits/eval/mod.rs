@@ -3,7 +3,29 @@ use super::*;
 pub mod lexer;
 pub use lexer::*;
 
-const DEBUG_EVAL: bool = false;
+impl<'a> Node<'a> {
+	pub fn get_scope(self) -> Option<(Source<'a>, std::ops::Range<usize>)> {
+		let mut cur = self.parent();
+		while let Some(node) = cur {
+			let span = node.span();
+			let is_scope = !span.is_empty()
+				&& match node.value() {
+					Value::Group => true,
+					Value::Source(..) => true,
+					Value::Module(..) => true,
+					_ => false,
+				};
+
+			if is_scope {
+				return Some((span.src(), span.pos()..span.end()));
+			}
+
+			cur = node.parent();
+		}
+
+		None
+	}
+}
 
 pub trait Evaluator<'a>: Debug {
 	fn execute(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
@@ -17,10 +39,10 @@ pub trait Evaluator<'a>: Debug {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()>;
 
 	fn print_op(&self, ctx: ContextRef<'a>, binding: &BoundNodes<'a>) -> Result<()> {
-		let (pos, end) = (binding.pos(), binding.end());
+		let (pos, end, src) = (binding.pos(), binding.end(), binding.src());
 		let _ = ctx;
 		println!(
-			"\n>>> Process {:?} -- {pos}:{end} / order = {} <<<",
+			"\n>>> Process {:?} -- {pos}:{end} @{src} / order = {} <<<",
 			self,
 			binding.order()
 		);
@@ -104,7 +126,7 @@ impl<'a> Evaluator<'a> for SplitLine {
 
 			let mut cur = 0;
 			for it in targets {
-				it.silence();
+				it.flag_silent();
 				let index = it.index();
 				let nodes = &old_nodes[cur..index];
 				cur = index + 1;
@@ -125,7 +147,7 @@ impl<'a> Evaluator<'a> for Print {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
 		for (parent, targets) in binding.by_parent() {
 			for it in targets.iter().rev() {
-				it.silence();
+				it.flag_silent();
 				let index = it.index();
 				let nodes = parent.remove_nodes(index..);
 				let span = Span::range(nodes);
@@ -134,6 +156,77 @@ impl<'a> Evaluator<'a> for Print {
 				node.flag_done();
 				parent.push_node(node);
 			}
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct Let;
+
+impl<'a> Evaluator<'a> for Let {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		for it in binding.nodes() {
+			// keep alive by default to make loop easier
+			it.keep_alive();
+
+			let parent = if let Some(parent) = it.parent() {
+				parent
+			} else {
+				continue;
+			};
+
+			if it.index() != 0 {
+				continue;
+			}
+
+			let (name, expr, span) = if let Some(name) = it.next() {
+				let has_eq = name.next().map(|x| x.value()) == Some(Value::Token(Token::Symbol(Symbol::str("="))));
+				if !has_eq {
+					continue;
+				}
+
+				if let Value::Token(Token::Word(name)) = name.value() {
+					let nodes = parent.remove_nodes(..);
+					nodes[0].done();
+					nodes[1].done();
+					nodes[2].done();
+					let expr = &nodes[3..];
+					let span = nodes[0].span().merged(nodes[1].span());
+					(name, expr, span)
+				} else {
+					continue;
+				}
+			} else {
+				continue;
+			};
+
+			if let Some((src, range)) = parent.get_scope() {
+				ctx.bindings()
+					.match_at(src, range, Match::word(name))
+					.with_precedence(Value::SInt(i64::MAX))
+					.bind(Var(name));
+			} else {
+				err!("let without scope at {span}")?;
+			}
+
+			let node = ctx.node(Value::Let(name), span);
+			node.set_nodes(expr);
+			node.flag_done();
+			parent.push_node(node);
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct Var(Symbol);
+
+impl<'a> Evaluator<'a> for Var {
+	fn eval_nodes(&self, _ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		for it in binding.nodes() {
+			it.set_value(Value::Var(self.0));
+			it.done();
 		}
 		Ok(())
 	}

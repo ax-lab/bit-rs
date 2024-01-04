@@ -44,22 +44,7 @@ fn run(mut args: Args) -> Result<()> {
 	let value = execute(ctx, out);
 
 	if args.show_stats || value.is_err() {
-		let stats = Arena::stats();
-		let used = stats.used();
-		let size = stats.size();
-		let max_used = stats.max_used();
-		let max_size = stats.max_size();
-		let mut out = if args.show_stats && !value.is_err() {
-			Writer::stdout()
-		} else {
-			Writer::stderr()
-		};
-
-		let _ = print_bytes(&mut out, "\n[INFO] Memory used: ", used);
-		let _ = print_bytes(&mut out, " out of ", size);
-		let _ = print_bytes(&mut out, " (max: ", max_used);
-		let _ = print_bytes(&mut out, " / ", max_size);
-		let _ = write!(out, ")\n");
+		dump_stats(value.is_err());
 	}
 
 	if value.is_err() || args.show_dump {
@@ -88,16 +73,63 @@ pub fn eval<'a, T: Into<String>>(ctx: &'a Context, output: &'a mut String, code:
 	execute(ctx, out)
 }
 
+pub fn dump_stats(error: bool) {
+	let stats = Arena::stats();
+	let used = stats.used();
+	let size = stats.size();
+	let max_used = stats.max_used();
+	let max_size = stats.max_size();
+
+	let mut out = if error { Writer::stdout() } else { Writer::stderr() };
+
+	let _ = print_bytes(&mut out, "\n[INFO] Memory used: ", used);
+	let _ = print_bytes(&mut out, " out of ", size);
+	let _ = print_bytes(&mut out, " (max: ", max_used);
+	let _ = print_bytes(&mut out, " / ", max_size);
+	let _ = write!(out, ")\n");
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	#[test]
+	fn simple_value() -> Result<()> {
+		check(Value::Str("abc"), "", "'abc'")
+	}
+
+	#[test]
 	fn hello_world() -> Result<()> {
+		check(Value::Unit, "hello world\n", "print 'hello world'")
+	}
+
+	#[test]
+	fn variables() -> Result<()> {
+		check(Value::SInt(42), "", src(["let x = 42", "x"]))
+	}
+
+	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
 		let (mut ctx, mut out) = (Context::new(), String::new());
-		let ans = eval(&mut ctx, &mut out, "print 'hello world'")?;
-		assert_eq!(Value::Unit, ans);
-		assert_eq!("hello world\n", out);
+		let ans = eval(&mut ctx, &mut out, code);
+		let ans = match ans {
+			Ok(val) => val,
+			Err(err) => {
+				let mut out = Writer::stderr();
+
+				dump_stats(true);
+				let _ = writeln!(out, "\n===[ PROGRAM ]======");
+				let _ = dump_nodes(&mut out, ctx.get());
+				let _ = writeln!(out, "\n===[ EVAL ERROR ]===\n\n{err}\n\n====================\n");
+				return Err("Eval failed".to_error());
+			}
+		};
+		assert_eq!(expected_value, ans);
+		assert_eq!(expected_output, out);
 		Ok(())
+	}
+
+	fn src<T: IntoIterator<Item = U>, U: Into<String>>(src: T) -> String {
+		let lines = src.into_iter().map(|x| x.into()).collect::<Vec<_>>();
+		lines.join("\n")
 	}
 }

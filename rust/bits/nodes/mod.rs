@@ -235,16 +235,20 @@ impl<'a> Node<'a> {
 		todo!()
 	}
 
-	pub fn silence(self) {
-		self.set_status(FLAG_SILENT, true);
-	}
-
 	pub fn is_silent(self) -> bool {
 		self.get_status(FLAG_SILENT)
 	}
 
 	pub fn keep_alive(self) {
 		self.set_status(FLAG_DONE, false);
+	}
+
+	pub fn done(self) {
+		self.set_status(FLAG_SILENT | FLAG_DONE, true);
+	}
+
+	pub fn flag_silent(self) {
+		self.set_status(FLAG_SILENT, true);
 	}
 
 	pub fn flag_done(self) {

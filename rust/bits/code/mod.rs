@@ -102,6 +102,8 @@ impl<'a> Node<'a> {
 				Expr::Str(str)
 			}
 			Value::Token(_) => Expr::None,
+			Value::Let(_) => Expr::None,
+			Value::Var(_) => Expr::None,
 			Value::Module(_) => self.compile_seq()?,
 			Value::Group => self.compile_seq()?,
 			Value::Print => {

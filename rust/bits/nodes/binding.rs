@@ -2,7 +2,7 @@ use std::mem::{discriminant, Discriminant};
 
 use super::*;
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Match<'a> {
 	Exact(Value<'a>),
 	KindOf(Discriminant<Value<'a>>),
@@ -89,6 +89,8 @@ impl<'a> Key<'a> {
 			Value::Module(_) => Self::as_kind(v),
 			Value::Group => Self::as_kind(v),
 			Value::Print => Self::as_kind(v),
+			Value::Let(_) => Self::as_kind(v),
+			Value::Var(_) => Self::as_kind(v),
 
 			Value::Str(_) => Self::as_value(v),
 
@@ -267,8 +269,9 @@ impl<'a> Bindings<'a> {
 		self.by_source(Source::default()).get_binding(pattern, 0, usize::MAX)
 	}
 
-	pub fn match_at(&self, at: Span<'a>, pattern: Match<'a>) -> Binding<'a> {
-		self.by_source(at.src()).get_binding(pattern, at.pos(), at.end())
+	pub fn match_at(&self, src: Source<'a>, range: std::ops::Range<usize>, pattern: Match<'a>) -> Binding<'a> {
+		assert!(range.end > range.start);
+		self.by_source(src).get_binding(pattern, range.start, range.end)
 	}
 
 	pub fn get_next(&self) -> Option<BoundNodes<'a>> {
@@ -305,6 +308,12 @@ impl<'a> Bindings<'a> {
 					nodes,
 					sorted_by_parent: false,
 				});
+			} else if DEBUG_EVAL && DEBUG_EVAL_EMPTY {
+				let val = item.val();
+				let sta = val.sta;
+				let end = val.end;
+				let src = item.parent.table.source;
+				println!(">>> EMPTY BINDING: {:?} ({src} from {sta} to {end})", val.val);
 			}
 		}
 

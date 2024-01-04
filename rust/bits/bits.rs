@@ -45,6 +45,8 @@ pub mod mem;
 pub use mem::*;
 
 const DEBUG_CODE: bool = false;
+const DEBUG_EVAL: bool = false;
+const DEBUG_EVAL_EMPTY: bool = false;
 
 pub fn version() -> &'static str {
 	"0.1.0"
@@ -75,7 +77,17 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(Print);
 
 	bindings
+		.match_any(Match::word("let"))
+		.with_precedence(Value::SInt(2))
+		.bind(Let);
+
+	bindings
 		.match_any(Match::token(Token::Literal))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(Output);
+
+	bindings
+		.match_any(Match::token(Token::Integer))
 		.with_precedence(Value::SInt(i64::MAX))
 		.bind(Output);
 
