@@ -28,6 +28,9 @@ test-bit:
 	@echo ------------------------------------------------------
 	@ go run ./go/bit-wrapper/bit.go test
 
+test-main:
+	@ ./cargo-test --bin bit
+
 test-release:
 	@ ./cargo-test --release
 

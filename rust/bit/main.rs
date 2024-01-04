@@ -76,3 +76,28 @@ fn run(mut args: Args) -> Result<()> {
 
 	Ok(())
 }
+
+pub fn eval<'a, T: Into<String>>(ctx: &'a Context, output: &'a mut String, code: T) -> Result<Value<'a>> {
+	let ctx = ctx.get();
+	init_context(ctx)?;
+
+	let src = ctx.sources().from_string("eval", code);
+	ctx.node(Value::Source(src), src.span());
+
+	let out = Writer::fmt(output);
+	execute(ctx, out)
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn hello_world() -> Result<()> {
+		let (mut ctx, mut out) = (Context::new(), String::new());
+		let ans = eval(&mut ctx, &mut out, "print 'hello world'")?;
+		assert_eq!(Value::Unit, ans);
+		assert_eq!("hello world\n", out);
+		Ok(())
+	}
+}
