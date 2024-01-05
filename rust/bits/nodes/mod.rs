@@ -152,6 +152,16 @@ impl<'a> Node<'a> {
 		self.parent().and_then(|x| x.node(next))
 	}
 
+	pub fn find_next(self) -> Option<Node<'a>> {
+		if let Some(next) = self.next() {
+			Some(next)
+		} else if let Some(parent) = self.parent() {
+			parent.find_next()
+		} else {
+			None
+		}
+	}
+
 	pub fn prev(self) -> Option<Node<'a>> {
 		let index = self.index();
 		if index == 0 {
@@ -194,6 +204,17 @@ impl<'a> Node<'a> {
 		T::IntoIter: ExactSizeIterator,
 	{
 		self.insert_nodes(self.len(), nodes)
+	}
+
+	pub fn remove(self) -> bool {
+		if let Some(parent) = self.parent() {
+			let idx = self.index();
+			parent.remove_nodes(idx..idx + 1);
+			self.data.index.set(0);
+			true
+		} else {
+			false
+		}
 	}
 
 	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> &'a [Node<'a>] {

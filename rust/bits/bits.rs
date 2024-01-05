@@ -96,6 +96,11 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalIndent);
 
 	bindings
+		.match_any(Match::symbol(":"))
+		.with_precedence(Value::SInt(2))
+		.bind(EvalIndentedBlock);
+
+	bindings
 		.match_any(Match::word("print"))
 		.with_precedence(Value::SInt(100))
 		.bind(EvalPrint);

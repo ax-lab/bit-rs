@@ -418,3 +418,50 @@ impl<'a> Evaluator<'a> for EvalIndent {
 		Ok(())
 	}
 }
+
+#[derive(Debug)]
+pub struct EvalIndentedBlock;
+
+impl<'a> Evaluator<'a> for EvalIndentedBlock {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (node, targets) in binding.by_parent() {
+			// only parse the block operator at the end of a group
+			for it in targets {
+				it.keep_alive();
+			}
+
+			let sep = targets.last().unwrap();
+			if sep.next().is_some() {
+				continue;
+			}
+
+			sep.ignore();
+
+			let span = sep.span();
+			if let Some(next) = sep.find_next() {
+				let is_seq = if let Value::Sequence { indented, .. } = next.value() {
+					indented
+				} else {
+					false
+				};
+				if !is_seq {
+					let span_next = next.span();
+					err!("at {span_next}: expected indented block for {span}, but found {next}")?;
+				}
+
+				let children = node.remove_nodes(..);
+				let children = &children[..children.len() - 1];
+				let head = ctx.node(Value::Group { scoped: true }, Span::range(children));
+				head.set_nodes(children);
+				head.flag_done();
+
+				next.remove();
+				next.flag_done();
+				node.append_nodes([head, next]);
+			} else {
+				err!("at {span}: expected indented block after delimiter")?;
+			}
+		}
+		Ok(())
+	}
+}
