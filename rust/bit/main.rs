@@ -117,6 +117,17 @@ mod tests {
 		)
 	}
 
+	#[test]
+	fn simple_expression() -> Result<()> {
+		let ctx = Context::new();
+		check(
+			&ctx,
+			Value::SInt(42),
+			"",
+			src(["let x = 5", "let y = 2", "let z = y * y", "x * y * z + y"]),
+		)
+	}
+
 	fn check<'a, T: Into<String>>(
 		ctx: &'a Context,
 		expected_value: Value<'a>,

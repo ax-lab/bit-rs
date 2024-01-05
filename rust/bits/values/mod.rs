@@ -16,7 +16,8 @@ pub enum Value<'a> {
 	Token(Token),
 	Let(Var<'a>),
 	Var(Var<'a>),
-	Group,
+	BinaryOp(Symbol),
+	Group { scoped: bool },
 	Print,
 }
 
@@ -49,7 +50,8 @@ impl<'a> Debug for Value<'a> {
 			Value::Module(src) => write!(f, "Module({src:?})"),
 			Value::Let(var) => write!(f, "Let({var:?})"),
 			Value::Var(var) => write!(f, "Var({var:?})"),
-			Value::Group => write!(f, "Group"),
+			Value::BinaryOp(op) => write!(f, "BinaryOp({op})"),
+			Value::Group { scoped } => write!(f, "Group(scoped={scoped})"),
 			Value::Print => write!(f, "Print"),
 		}
 	}

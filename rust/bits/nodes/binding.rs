@@ -87,12 +87,13 @@ impl<'a> Key<'a> {
 			Value::UInt(_) => Self::as_kind(v),
 			Value::Source(_) => Self::as_kind(v),
 			Value::Module(_) => Self::as_kind(v),
-			Value::Group => Self::as_kind(v),
+			Value::Group { .. } => Self::as_kind(v),
 			Value::Print => Self::as_kind(v),
 			Value::Let(_) => Self::as_kind(v),
 			Value::Var(_) => Self::as_kind(v),
 
 			Value::Str(_) => Self::as_value(v),
+			Value::BinaryOp(_) => Self::as_value(v),
 
 			Value::Token(token) => Self::three(Self::Exact(v), Self::Token(discriminant(&token)), Self::kind_of(v)),
 		}
@@ -270,7 +271,7 @@ impl<'a> Bindings<'a> {
 	}
 
 	pub fn match_at(&self, src: Source<'a>, range: std::ops::Range<usize>, pattern: Match<'a>) -> Binding<'a> {
-		assert!(range.end > range.start);
+		assert!(range.end >= range.start);
 		self.by_source(src).get_binding(pattern, range.start, range.end)
 	}
 
@@ -489,6 +490,9 @@ pub struct Binding<'a> {
 
 impl<'a> Binding<'a> {
 	pub fn bind<T: Evaluator<'a> + 'a>(&self, eval: T) {
+		if self.sta >= self.end {
+			return;
+		}
 		let bindings = self.table.by_pattern(self.pattern);
 		let value = self.table.ctx.store(BoundValue {
 			sta: self.sta,

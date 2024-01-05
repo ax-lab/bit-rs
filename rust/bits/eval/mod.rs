@@ -10,7 +10,7 @@ impl<'a> Node<'a> {
 			let span = node.span();
 			let is_scope = !span.is_empty()
 				&& match node.value() {
-					Value::Group => true,
+					Value::Group { scoped } => scoped,
 					Value::Source(..) => true,
 					Value::Module(..) => true,
 					_ => false,
@@ -23,7 +23,12 @@ impl<'a> Node<'a> {
 			cur = node.parent();
 		}
 
-		None
+		let src = self.span().src();
+		if src == Source::default() {
+			None
+		} else {
+			Some((src, 0..src.len()))
+		}
 	}
 }
 
@@ -117,7 +122,7 @@ impl<'a> Evaluator<'a> for EvalLineBreak {
 			let mut push = |nodes: &[Node<'a>]| {
 				if nodes.len() > 0 {
 					let span = Span::range(nodes);
-					let node = ctx.node(Value::Group, span);
+					let node = ctx.node(Value::Group { scoped: false }, span);
 					node.append_nodes(nodes);
 					node.flag_done();
 					new_nodes.push(node);
@@ -188,9 +193,9 @@ impl<'a> Evaluator<'a> for EvalLet {
 
 				if let Value::Token(Token::Word(name)) = name.value() {
 					let nodes = parent.remove_nodes(..);
-					nodes[0].done();
-					nodes[1].done();
-					nodes[2].done();
+					nodes[0].ignore();
+					nodes[1].ignore();
+					nodes[2].ignore();
 					let expr = &nodes[3..];
 					let span = nodes[0].span().merged(nodes[1].span());
 					(name, expr, span)
@@ -202,13 +207,24 @@ impl<'a> Evaluator<'a> for EvalLet {
 			};
 
 			let node = ctx.node(Value::None, span);
-			let let_value = if let Some((src, mut range)) = parent.get_scope() {
-				range.start = span.pos();
+			let let_value = if let Some((src, mut range)) = it.get_scope() {
+				range.start = if let Some(last) = expr.last() {
+					last.span().end()
+				} else {
+					span.end()
+				};
 				let var = ctx.variables().declare(name, node);
 				ctx.bindings()
 					.match_at(src, range, Match::word(name))
 					.with_precedence(Value::SInt(i64::MAX))
 					.bind(EvalVar(var));
+
+				let expr_span = Span::range(expr);
+				ctx.bindings()
+					.match_at(src, expr_span.pos()..expr_span.end(), Match::word(Symbol::str("this")))
+					.with_precedence(Value::SInt(i64::MAX))
+					.bind(EvalVar(var));
+
 				Value::Let(var)
 			} else {
 				err!("let without scope at {span}")?
@@ -227,11 +243,82 @@ impl<'a> Evaluator<'a> for EvalLet {
 pub struct EvalVar<'a>(Var<'a>);
 
 impl<'a> Evaluator<'a> for EvalVar<'a> {
-	fn eval_nodes(&self, _ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		let _ = ctx;
 		for it in binding.nodes() {
 			it.set_value(Value::Var(self.0));
-			it.done();
+			it.ignore();
 		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalBinaryOp {
+	pub op: Symbol,
+	pub group_right: bool,
+}
+
+impl<'a> Evaluator<'a> for EvalBinaryOp {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		let op = self.op;
+
+		let make_op_node = |cur_node: &Node<'a>,
+		                    prev_op_node: Option<Node<'a>>,
+		                    op_value: &'a [Node<'a>]|
+		 -> Result<Option<Node<'a>>> {
+			cur_node.ignore();
+			if op_value.len() == 0 {
+				let span = cur_node.span();
+				err!("at {span}: operand for binary {op} is empty")?;
+			}
+
+			let op_span = Span::range(op_value);
+			let op_node = ctx.node(Value::Group { scoped: false }, op_span);
+			op_node.flag_done();
+			op_node.set_nodes(op_value);
+			let node = match prev_op_node {
+				None => op_node,
+				Some(op_prev) => {
+					let span = Span::merge(op_prev.span(), op_node.span());
+					let node = ctx.node(Value::BinaryOp(op), span);
+					node.flag_done();
+					if self.group_right {
+						node.append_nodes([op_node, op_prev]);
+					} else {
+						node.append_nodes([op_prev, op_node]);
+					}
+					node
+				}
+			};
+			Ok(Some(node))
+		};
+
+		for (node, targets) in binding.by_parent() {
+			let mut binary_op = None;
+			let mut children = node.remove_nodes(..);
+			if self.group_right {
+				for it in targets.iter().rev() {
+					let idx = it.index();
+					let op_value = &children[idx + 1..];
+					children = &children[..idx];
+					binary_op = make_op_node(it, binary_op, op_value)?;
+				}
+				binary_op = make_op_node(targets.last().unwrap(), binary_op, children)?;
+			} else {
+				let mut cur = 0;
+				for it in targets.iter() {
+					let idx = it.index();
+					let op_value = &children[cur..idx];
+					cur = idx + 1;
+					binary_op = make_op_node(it, binary_op, op_value)?;
+				}
+				binary_op = make_op_node(targets.last().unwrap(), binary_op, &children[cur..])?;
+			}
+
+			node.push_node(binary_op.unwrap());
+		}
+
 		Ok(())
 	}
 }

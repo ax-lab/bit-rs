@@ -12,7 +12,7 @@ impl<'a> IsContext<'a> for VariablesContext<'a> {
 
 impl<'a> VariablesContext<'a> {
 	pub fn declare(&self, name: Symbol, source: Node<'a>) -> Var<'a> {
-		let data = self.ctx.store(VarData { name, source });
+		let data = self.ctx.store(VarData { name, node: source });
 		Var { data }
 	}
 }
@@ -27,14 +27,14 @@ impl<'a> Var<'a> {
 		self.data.name
 	}
 
-	pub fn source(&self) -> Node<'a> {
-		self.data.source
+	pub fn node(&self) -> Node<'a> {
+		self.data.node
 	}
 }
 
 struct VarData<'a> {
 	name: Symbol,
-	source: Node<'a>,
+	node: Node<'a>,
 }
 
 impl<'a> Eq for Var<'a> {}
@@ -43,7 +43,7 @@ impl<'a> Ord for Var<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.name()
 			.cmp(&other.name())
-			.then_with(|| self.source().cmp(&other.source()))
+			.then_with(|| self.node().cmp(&other.node()))
 	}
 }
 
@@ -67,7 +67,7 @@ impl<'a> Hash for Var<'a> {
 
 impl<'a> Display for Var<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		let span = self.data.source.span();
+		let span = self.data.node.span();
 		write!(f, "`")?;
 		self.data.name.write_name(f, false)?;
 		write!(f, "`")?;
@@ -80,7 +80,7 @@ impl<'a> Display for Var<'a> {
 
 impl<'a> Debug for Var<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		let span = self.data.source.span();
+		let span = self.data.node.span();
 		write!(f, "Var(")?;
 		self.data.name.write_name(f, false)?;
 		if !span.is_empty() {

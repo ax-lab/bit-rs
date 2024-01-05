@@ -82,6 +82,22 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalLet);
 
 	bindings
+		.match_any(Match::symbol("+"))
+		.with_precedence(Value::SInt(1000))
+		.bind(EvalBinaryOp {
+			op: Symbol::str("+"),
+			group_right: false,
+		});
+
+	bindings
+		.match_any(Match::symbol("*"))
+		.with_precedence(Value::SInt(1001))
+		.bind(EvalBinaryOp {
+			op: Symbol::str("*"),
+			group_right: false,
+		});
+
+	bindings
 		.match_any(Match::token(Token::Literal))
 		.with_precedence(Value::SInt(i64::MAX))
 		.bind(Output);

@@ -50,6 +50,18 @@ pub struct Code<'a> {
 }
 
 impl<'a> Code<'a> {
+	pub fn expr(&self) -> &Expr<'a> {
+		&self.expr
+	}
+
+	pub fn span(&self) -> &Span<'a> {
+		&self.span
+	}
+
+	pub fn node(&self) -> Option<Node<'a>> {
+		self.node
+	}
+
 	pub fn execute<'b>(&self, rt: &mut Runtime<'a, 'b>) -> Result<Value<'a>> {
 		let span = self.span;
 		let value = match self.expr {
@@ -105,7 +117,7 @@ impl<'a> Code<'a> {
 				if let Some(value) = rt.vars.get(&var) {
 					*value
 				} else {
-					err!("variable {var} is not declared (code at {span})")?
+					err!("variable {var} has not been initialized (code at {span})")?
 				}
 			}
 		};
@@ -144,10 +156,16 @@ impl<'a> Node<'a> {
 			}
 			Value::Var(var) => Expr::Var(var),
 			Value::Module(_) => self.compile_seq()?,
-			Value::Group => return self.compile_child(),
+			Value::Group { .. } => return self.compile_child(),
 			Value::Print => {
 				let args = self.compile_nodes()?;
 				Expr::Print(args)
+			}
+			Value::BinaryOp(op) => {
+				if self.len() != 2 {
+					err!("at {span}: binary operator must have exactly two children: {self}")?;
+				}
+				err!("at {span}: operator {op} not implemented: {self}")?
 			}
 		};
 

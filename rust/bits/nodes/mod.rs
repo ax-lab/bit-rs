@@ -231,10 +231,6 @@ impl<'a> Node<'a> {
 		return removed;
 	}
 
-	pub fn get_type(self) -> Type<'a> {
-		todo!()
-	}
-
 	pub fn is_silent(self) -> bool {
 		self.get_status(FLAG_SILENT)
 	}
@@ -243,7 +239,7 @@ impl<'a> Node<'a> {
 		self.set_status(FLAG_DONE, false);
 	}
 
-	pub fn done(self) {
+	pub fn ignore(self) {
 		self.set_status(FLAG_SILENT | FLAG_DONE, true);
 	}
 
