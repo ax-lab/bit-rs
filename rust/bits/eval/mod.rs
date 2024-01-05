@@ -106,9 +106,9 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 }
 
 #[derive(Debug)]
-pub struct SplitLine;
+pub struct EvalLineBreak;
 
-impl<'a> Evaluator<'a> for SplitLine {
+impl<'a> Evaluator<'a> for EvalLineBreak {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
 		for (parent, targets) in binding.by_parent() {
 			let old_nodes = parent.remove_nodes(..);
@@ -141,9 +141,9 @@ impl<'a> Evaluator<'a> for SplitLine {
 }
 
 #[derive(Debug)]
-pub struct Print;
+pub struct EvalPrint;
 
-impl<'a> Evaluator<'a> for Print {
+impl<'a> Evaluator<'a> for EvalPrint {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
 		for (parent, targets) in binding.by_parent() {
 			for it in targets.iter().rev() {
@@ -162,9 +162,9 @@ impl<'a> Evaluator<'a> for Print {
 }
 
 #[derive(Debug)]
-pub struct Let;
+pub struct EvalLet;
 
-impl<'a> Evaluator<'a> for Let {
+impl<'a> Evaluator<'a> for EvalLet {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		for it in binding.nodes() {
 			// keep alive by default to make loop easier
@@ -201,16 +201,20 @@ impl<'a> Evaluator<'a> for Let {
 				continue;
 			};
 
-			if let Some((src, range)) = parent.get_scope() {
+			let node = ctx.node(Value::None, span);
+			let let_value = if let Some((src, mut range)) = parent.get_scope() {
+				range.start = span.pos();
+				let var = ctx.variables().declare(name, node);
 				ctx.bindings()
 					.match_at(src, range, Match::word(name))
 					.with_precedence(Value::SInt(i64::MAX))
-					.bind(Var(name));
+					.bind(EvalVar(var));
+				Value::Let(var)
 			} else {
-				err!("let without scope at {span}")?;
-			}
+				err!("let without scope at {span}")?
+			};
 
-			let node = ctx.node(Value::Let(name), span);
+			node.set_value(let_value);
 			node.set_nodes(expr);
 			node.flag_done();
 			parent.push_node(node);
@@ -220,9 +224,9 @@ impl<'a> Evaluator<'a> for Let {
 }
 
 #[derive(Debug)]
-pub struct Var(Symbol);
+pub struct EvalVar<'a>(Var<'a>);
 
-impl<'a> Evaluator<'a> for Var {
+impl<'a> Evaluator<'a> for EvalVar<'a> {
 	fn eval_nodes(&self, _ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		for it in binding.nodes() {
 			it.set_value(Value::Var(self.0));

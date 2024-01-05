@@ -14,8 +14,8 @@ pub enum Value<'a> {
 	Source(Source<'a>),
 	Module(Source<'a>),
 	Token(Token),
-	Let(Symbol),
-	Var(Symbol),
+	Let(Var<'a>),
+	Var(Var<'a>),
 	Group,
 	Print,
 }
@@ -47,8 +47,8 @@ impl<'a> Debug for Value<'a> {
 			Value::Token(tok) => write!(f, "Token({tok:?})"),
 			Value::Source(src) => write!(f, "Source({src:?})"),
 			Value::Module(src) => write!(f, "Module({src:?})"),
-			Value::Let(name) => write!(f, "Let({name})"),
-			Value::Var(name) => write!(f, "Var({name})"),
+			Value::Let(var) => write!(f, "Let({var:?})"),
+			Value::Var(var) => write!(f, "Var({var:?})"),
 			Value::Group => write!(f, "Group"),
 			Value::Print => write!(f, "Print"),
 		}

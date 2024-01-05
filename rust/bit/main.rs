@@ -62,17 +62,6 @@ fn run(mut args: Args) -> Result<()> {
 	Ok(())
 }
 
-pub fn eval<'a, T: Into<String>>(ctx: &'a Context, output: &'a mut String, code: T) -> Result<Value<'a>> {
-	let ctx = ctx.get();
-	init_context(ctx)?;
-
-	let src = ctx.sources().from_string("eval", code);
-	ctx.node(Value::Source(src), src.span());
-
-	let out = Writer::fmt(output);
-	execute(ctx, out)
-}
-
 pub fn dump_stats(error: bool) {
 	let stats = Arena::stats();
 	let used = stats.used();
@@ -95,27 +84,56 @@ mod tests {
 
 	#[test]
 	fn simple_string() -> Result<()> {
-		check(Value::Str("abc"), "", "'abc'")
+		let ctx = Context::new();
+		check(&ctx, Value::Str("abc"), "", "'abc'")
 	}
 
 	#[test]
 	fn simple_int() -> Result<()> {
-		check(Value::SInt(42), "", "42")
+		let ctx = Context::new();
+		check(&ctx, Value::SInt(42), "", "42")
 	}
 
 	#[test]
 	fn hello_world() -> Result<()> {
-		check(Value::Unit, "hello world\n", "print 'hello world'")
+		let ctx = Context::new();
+		check(&ctx, Value::Unit, "hello world\n", "print 'hello world'")
 	}
 
 	#[test]
-	fn variables() -> Result<()> {
-		check(Value::SInt(42), "", src(["let x = 42", "x"]))
+	fn simple_variable() -> Result<()> {
+		let ctx = Context::new();
+		check(&ctx, Value::SInt(42), "", src(["let x = 42", "x"]))
 	}
 
-	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
-		let (mut ctx, mut out) = (Context::new(), String::new());
-		let ans = eval(&mut ctx, &mut out, code);
+	#[test]
+	fn variable_shadowing() -> Result<()> {
+		let ctx = Context::new();
+		check(
+			&ctx,
+			Value::SInt(69),
+			"42\n",
+			src(["let x = 42", "print x", "let x = 69", "x"]),
+		)
+	}
+
+	fn check<'a, T: Into<String>>(
+		ctx: &'a Context,
+		expected_value: Value<'a>,
+		expected_output: &str,
+		code: T,
+	) -> Result<()> {
+		let mut out = String::new();
+
+		let ctx = ctx.get();
+		init_context(ctx)?;
+
+		let src = ctx.sources().from_string("eval", code);
+		ctx.node(Value::Source(src), src.span());
+
+		let w = Writer::fmt(&mut out);
+		let ans = execute(ctx, w);
+
 		let ans = match ans {
 			Ok(val) => val,
 			Err(err) => {
@@ -123,7 +141,7 @@ mod tests {
 
 				dump_stats(true);
 				let _ = writeln!(out, "\n===[ PROGRAM ]======");
-				let _ = dump_nodes(&mut out, ctx.get());
+				let _ = dump_nodes(&mut out, ctx);
 				let _ = writeln!(out, "\n===[ EVAL ERROR ]===\n\n{err}\n\n====================\n");
 				return Err("Eval failed".to_error());
 			}

@@ -1,13 +1,24 @@
+use std::collections::hash_map::Entry;
+
 use super::*;
 
-pub struct Runtime<'a> {
+mod vars;
+
+pub use vars::*;
+
+pub struct Runtime<'a, 'b> {
 	ctx: ContextRef<'a>,
-	out: Writer<'a>,
+	out: Writer<'b>,
+	vars: HashMap<Var<'a>, Value<'a>>,
 }
 
-impl<'a> Runtime<'a> {
-	pub fn new(ctx: ContextRef<'a>, out: Writer<'a>) -> Self {
-		Self { ctx, out }
+impl<'a, 'b> Runtime<'a, 'b> {
+	pub fn new(ctx: ContextRef<'a>, out: Writer<'b>) -> Self {
+		Self {
+			ctx,
+			out,
+			vars: Default::default(),
+		}
 	}
 
 	pub fn context(&self) -> ContextRef<'a> {
@@ -25,25 +36,37 @@ pub enum Expr<'a> {
 	UInt(u64),
 	Str(&'a str),
 	Print(&'a [Code<'a>]),
+	Let(Var<'a>, &'a Code<'a>),
+	Var(Var<'a>),
 }
 
-impl<'a> Expr<'a> {
-	pub fn eval(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
-		let value = match self {
-			&Expr::None => Value::None,
-			&Expr::Seq(list) => {
+impl<'a> Expr<'a> {}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Code<'a> {
+	expr: Expr<'a>,
+	span: Span<'a>,
+	node: Option<Node<'a>>,
+}
+
+impl<'a> Code<'a> {
+	pub fn execute<'b>(&self, rt: &mut Runtime<'a, 'b>) -> Result<Value<'a>> {
+		let span = self.span;
+		let value = match self.expr {
+			Expr::None => Value::None,
+			Expr::Seq(list) => {
 				let mut output = Value::None;
 				for it in list {
 					output = it.execute(rt)?;
 				}
 				output
 			}
-			&Expr::Unit => Value::Unit,
-			&Expr::Bool(v) => Value::Bool(v),
-			&Expr::SInt(v) => Value::SInt(v),
-			&Expr::UInt(v) => Value::UInt(v),
-			&Expr::Str(str) => Value::Str(str),
-			&Expr::Print(args) => {
+			Expr::Unit => Value::Unit,
+			Expr::Bool(v) => Value::Bool(v),
+			Expr::SInt(v) => Value::SInt(v),
+			Expr::UInt(v) => Value::UInt(v),
+			Expr::Str(str) => Value::Str(str),
+			Expr::Print(args) => {
 				let mut has_output = false;
 				for it in args {
 					let it = it.execute(rt)?;
@@ -67,27 +90,33 @@ impl<'a> Expr<'a> {
 				write!(rt.out, "\n")?;
 				Value::Unit
 			}
+			Expr::Let(var, code) => {
+				let value = code.execute(rt)?;
+				let entry = rt.vars.entry(var);
+				match entry {
+					Entry::Occupied(_) => err!("variable {var} is already defined (code at {span})")?,
+					Entry::Vacant(entry) => {
+						entry.insert(value);
+					}
+				}
+				value
+			}
+			Expr::Var(var) => {
+				if let Some(value) = rt.vars.get(&var) {
+					*value
+				} else {
+					err!("variable {var} is not declared (code at {span})")?
+				}
+			}
 		};
 		Ok(value)
-	}
-}
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Code<'a> {
-	expr: Expr<'a>,
-	span: Span<'a>,
-	node: Option<Node<'a>>,
-}
-
-impl<'a> Code<'a> {
-	pub fn execute(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
-		self.expr.eval(rt)
 	}
 }
 
 impl<'a> Node<'a> {
 	pub fn compile(self) -> Result<Code<'a>> {
 		let span = self.span();
+		let ctx = self.context();
 		let expr = match self.value() {
 			Value::None => Expr::None,
 			Value::Unit => Expr::Unit,
@@ -108,10 +137,14 @@ impl<'a> Node<'a> {
 				Expr::Str(str)
 			}
 			Value::Token(_) => Expr::None,
-			Value::Let(_) => Expr::None,
-			Value::Var(_) => Expr::None,
+			Value::Let(var) => {
+				let code = self.compile_child()?;
+				let code = ctx.store(code);
+				Expr::Let(var, code)
+			}
+			Value::Var(var) => Expr::Var(var),
 			Value::Module(_) => self.compile_seq()?,
-			Value::Group => self.compile_seq()?,
+			Value::Group => return self.compile_child(),
 			Value::Print => {
 				let args = self.compile_nodes()?;
 				Expr::Print(args)
@@ -119,7 +152,6 @@ impl<'a> Node<'a> {
 		};
 
 		if expr == Expr::None && self.value() != Value::None {
-			let span = self.span();
 			err!("at {span}: node cannot be compiled: {self}")?;
 		}
 
@@ -129,6 +161,20 @@ impl<'a> Node<'a> {
 			node: Some(self),
 		};
 		Ok(code)
+	}
+
+	fn compile_child(self) -> Result<Code<'a>> {
+		let span = self.span();
+		let nodes = self.nodes();
+		match nodes.len() {
+			0 => Ok(Code {
+				expr: Expr::None,
+				span,
+				node: Some(self),
+			}),
+			1 => nodes[0].compile(),
+			_ => err!("at {span}: single expression node with multiple children: {self}")?,
+		}
 	}
 
 	fn compile_seq(self) -> Result<Expr<'a>> {

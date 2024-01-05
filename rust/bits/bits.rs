@@ -69,17 +69,17 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	bindings
 		.match_any(Match::exact(Value::Token(Token::Break)))
 		.with_precedence(Value::SInt(1))
-		.bind(SplitLine);
+		.bind(EvalLineBreak);
 
 	bindings
 		.match_any(Match::word("print"))
 		.with_precedence(Value::SInt(2))
-		.bind(Print);
+		.bind(EvalPrint);
 
 	bindings
 		.match_any(Match::word("let"))
 		.with_precedence(Value::SInt(2))
-		.bind(Let);
+		.bind(EvalLet);
 
 	bindings
 		.match_any(Match::token(Token::Literal))
@@ -94,7 +94,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	Ok(())
 }
 
-pub fn execute<'a>(ctx: ContextRef<'a>, out: Writer<'a>) -> Result<Value<'a>> {
+pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();
