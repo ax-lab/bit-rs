@@ -126,6 +126,20 @@ mod tests {
 		)
 	}
 
+	#[test]
+	fn if_expression() -> Result<()> {
+		check(
+			Value::Unit,
+			"this is true\n",
+			src([
+				"if true:",
+				"\tprint 'this is true'",
+				"else:",
+				"\tprint 'this is false'\n",
+			]),
+		)
+	}
+
 	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
 		let mut out = String::new();
 

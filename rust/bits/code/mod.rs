@@ -193,6 +193,7 @@ impl<'a> Node<'a> {
 			Value::SInt(_) => types.sint(),
 			Value::UInt(_) => types.uint(),
 			Value::Source(_) => types.invalid(),
+			Value::Indent(_) => types.invalid(),
 			Value::Module(_) => seq_type()?,
 			Value::Token(Token::Integer) => types.sint(),
 			Value::Token(Token::Literal) => types.str(),
@@ -200,6 +201,7 @@ impl<'a> Node<'a> {
 			Value::Let(_) => child_type()?,
 			Value::Var(var) => var.node().do_eval_type(output, chain)?,
 			Value::Group { .. } => child_type()?,
+			Value::Sequence { .. } => seq_type()?,
 			Value::Print => types.unit(),
 			Value::BinaryOp(op) => {
 				let nodes = self.nodes();
@@ -227,6 +229,7 @@ impl<'a> Node<'a> {
 			Value::SInt(v) => Expr::SInt(v),
 			Value::UInt(v) => Expr::UInt(v),
 			Value::Source(_) => Expr::None,
+			Value::Indent(_) => Expr::None,
 			Value::Token(Token::Integer) => {
 				let val = span.text();
 				let val = parse_int(val, 10)?;
@@ -246,6 +249,7 @@ impl<'a> Node<'a> {
 			}
 			Value::Var(var) => Expr::Var(var),
 			Value::Module(_) => self.compile_seq()?,
+			Value::Sequence { .. } => self.compile_seq()?,
 			Value::Group { .. } => return self.compile_child(),
 			Value::Print => {
 				let args = self.compile_nodes()?;

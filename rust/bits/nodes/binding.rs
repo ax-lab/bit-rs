@@ -22,6 +22,10 @@ impl<'a> Match<'a> {
 		Self::Exact(Value::Token(Token::Word(word.into())))
 	}
 
+	pub fn indent() -> Self {
+		Self::kind_of(Value::Indent(true))
+	}
+
 	pub fn token(token: Token) -> Self {
 		Self::Token(discriminant(&token))
 	}
@@ -88,9 +92,11 @@ impl<'a> Key<'a> {
 			Value::Source(_) => Self::as_kind(v),
 			Value::Module(_) => Self::as_kind(v),
 			Value::Group { .. } => Self::as_kind(v),
+			Value::Sequence { .. } => Self::as_kind(v),
 			Value::Print => Self::as_kind(v),
 			Value::Let(_) => Self::as_kind(v),
 			Value::Var(_) => Self::as_kind(v),
+			Value::Indent(_) => Self::as_kind(v),
 
 			Value::Str(_) => Self::as_value(v),
 			Value::BinaryOp(_) => Self::as_value(v),

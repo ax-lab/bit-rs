@@ -10,7 +10,8 @@ impl<'a> Node<'a> {
 			let span = node.span();
 			let is_scope = !span.is_empty()
 				&& match node.value() {
-					Value::Group { scoped } => scoped,
+					Value::Group { scoped, .. } => scoped,
+					Value::Sequence { scoped, .. } => scoped,
 					Value::Source(..) => true,
 					Value::Module(..) => true,
 					_ => false,
@@ -118,27 +119,63 @@ impl<'a> Evaluator<'a> for EvalLineBreak {
 		for (parent, targets) in binding.by_parent() {
 			let old_nodes = parent.remove_nodes(..);
 			let mut new_nodes = Vec::new();
+			let mut indent = Vec::new();
+			let mut span_last = Span::empty();
 
-			let mut push = |nodes: &[Node<'a>]| {
+			let mut push = |nodes: &[Node<'a>]| -> Result<()> {
 				if nodes.len() > 0 {
 					let span = Span::range(nodes);
+					span_last = span.to_end();
+					let level = span.indent();
+					let span_indent = span.truncated(0);
+					if let Some(&current) = indent.last() {
+						if level > current {
+							indent.push(level);
+							let inc = ctx.node(Value::Indent(true), span_indent);
+							new_nodes.push(inc);
+						} else if level < current {
+							let mut current = current;
+							while level < current {
+								indent.pop();
+								if let Some(&last) = indent.last() {
+									current = last;
+								} else {
+									let span = span.truncated(0);
+									err!("at {span}: invalid indentation (dedent is less than the base indentation)")?;
+								}
+
+								let dec = ctx.node(Value::Indent(false), span_indent);
+								new_nodes.push(dec);
+							}
+						}
+					} else {
+						indent.push(level);
+					}
 					let node = ctx.node(Value::Group { scoped: false }, span);
 					node.append_nodes(nodes);
 					node.flag_done();
 					new_nodes.push(node);
 				}
+				Ok(())
 			};
 
 			let mut cur = 0;
 			for it in targets {
-				it.flag_silent();
+				it.ignore();
 				let index = it.index();
 				let nodes = &old_nodes[cur..index];
 				cur = index + 1;
-				push(nodes);
+				push(nodes)?;
 			}
 
-			push(&old_nodes[cur..]);
+			push(&old_nodes[cur..])?;
+
+			while indent.len() > 1 {
+				indent.pop();
+				let dec = ctx.node(Value::Indent(false), span_last);
+				new_nodes.push(dec);
+			}
+
 			parent.append_nodes(new_nodes);
 		}
 		Ok(())
@@ -319,6 +356,65 @@ impl<'a> Evaluator<'a> for EvalBinaryOp {
 			node.push_node(binary_op.unwrap());
 		}
 
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalIndent;
+
+impl<'a> Evaluator<'a> for EvalIndent {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (node, targets) in binding.by_parent() {
+			let children = node.remove_nodes(..);
+			let mut stack = vec![Vec::<Node<'a>>::new()];
+			let mut cur = 0;
+			for it in targets {
+				it.ignore();
+				let idx = it.index();
+				if idx > cur {
+					let last = stack.last_mut().unwrap();
+					last.extend(&children[cur..idx]);
+				}
+				cur = idx + 1;
+
+				match it.value() {
+					Value::Indent(true) => {
+						stack.push(Vec::new());
+					}
+
+					Value::Indent(false) => {
+						if stack.len() <= 1 {
+							let span = it.span();
+							err!("[BUG] unbalanced dedent at {span}")?;
+						}
+
+						let nodes = stack.pop().unwrap();
+						let node = ctx.node(
+							Value::Sequence {
+								scoped: true,
+								indented: true,
+							},
+							Span::range(&nodes),
+						);
+						node.append_nodes(nodes);
+						stack.last_mut().unwrap().push(node);
+					}
+
+					_ => err!("[BUG] invalid target node for eval indent: {it}")?,
+				}
+			}
+
+			stack.last_mut().unwrap().extend(&children[cur..]);
+
+			if stack.len() != 1 {
+				let span = targets.first().unwrap().span();
+				err!("[BUG] missing dedent for {span}")?;
+			}
+
+			let new_nodes = stack.pop().unwrap();
+			node.append_nodes(new_nodes);
+		}
 		Ok(())
 	}
 }

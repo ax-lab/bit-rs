@@ -38,6 +38,36 @@ impl<'a> Span<'a> {
 		}
 	}
 
+	pub fn up_to(&self, other: Self) -> Self {
+		assert_eq!(self.src, other.src);
+		assert!(self.sta <= other.sta);
+		Self {
+			sta: self.sta,
+			end: other.sta,
+			ind: self.ind,
+			src: self.src,
+		}
+	}
+
+	pub fn to_end(&self) -> Self {
+		Self {
+			sta: self.end,
+			end: self.end,
+			ind: self.ind,
+			src: self.src,
+		}
+	}
+
+	pub fn truncated(&self, len: usize) -> Self {
+		assert!(len <= self.len());
+		Self {
+			sta: self.sta,
+			end: self.sta + len,
+			ind: self.ind,
+			src: self.src,
+		}
+	}
+
 	pub fn merge(a: Self, b: Self) -> Self {
 		if a.is_empty() {
 			return b;

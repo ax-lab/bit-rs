@@ -91,13 +91,18 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalLineBreak);
 
 	bindings
-		.match_any(Match::word("print"))
+		.match_any(Match::indent())
 		.with_precedence(Value::SInt(2))
+		.bind(EvalIndent);
+
+	bindings
+		.match_any(Match::word("print"))
+		.with_precedence(Value::SInt(100))
 		.bind(EvalPrint);
 
 	bindings
 		.match_any(Match::word("let"))
-		.with_precedence(Value::SInt(2))
+		.with_precedence(Value::SInt(100))
 		.bind(EvalLet);
 
 	bindings

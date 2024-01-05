@@ -18,7 +18,9 @@ pub enum Value<'a> {
 	Var(Var<'a>),
 	BinaryOp(OpKey),
 	Group { scoped: bool },
+	Sequence { scoped: bool, indented: bool },
 	Print,
+	Indent(bool),
 }
 
 impl<'a> Display for Value<'a> {
@@ -52,7 +54,9 @@ impl<'a> Debug for Value<'a> {
 			Value::Var(var) => write!(f, "Var({var:?})"),
 			Value::BinaryOp(op) => write!(f, "BinaryOp({op})"),
 			Value::Group { scoped } => write!(f, "Group(scoped={scoped})"),
+			Value::Sequence { scoped, indented } => write!(f, "Sequence(scoped={scoped}, indented={indented})"),
 			Value::Print => write!(f, "Print"),
+			Value::Indent(up) => write!(f, "Ident({up})"),
 		}
 	}
 }
