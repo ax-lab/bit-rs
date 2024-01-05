@@ -21,6 +21,8 @@ pub struct TypeContext<'a> {
 
 	invalid: TypeMap<'a, Type<'a>>,
 	builtin: TypeMap<'a, Primitive>,
+
+	sum_types: TypeMap<'a, (Type<'a>, Type<'a>)>,
 }
 
 unsafe impl<'a> Send for TypeData<'a> {}
@@ -88,6 +90,7 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 
 			invalid: TypeMap::new(),
 			builtin: TypeMap::new(),
+			sum_types: TypeMap::new(),
 		}
 	}
 
@@ -279,8 +282,31 @@ impl<'a> Type<'a> {
 	}
 
 	/// Return the sum of this type with the given type.
-	pub fn sum(&self, _other: Type<'a>) -> Type<'a> {
-		todo!()
+	pub fn sum(self, other: Type<'a>) -> Type<'a> {
+		let types = self.types();
+		let (a, b) = if self < other { (self, other) } else { (other, self) };
+		if a.is_invalid() || b.is_invalid() {
+			let va = a.get_valid();
+			let vb = b.get_valid();
+			va.sum(vb).to_invalid()
+		} else {
+			types.sum_types.get(&(a, b), |(a, b): (Type<'a>, Type<'a>)| {
+				if a.is_unknown() || a.is_none() {
+					b.data
+				} else if b.is_unknown() || b.is_none() {
+					a.data
+				} else if a.contains(b) {
+					a.data
+				} else if b.contains(a) {
+					b.data
+				} else {
+					types.store(TypeData {
+						ctx: types.ctx,
+						kind: TypeKind::Sum(a, b),
+					})
+				}
+			})
+		}
 	}
 
 	/// Return the intersection of this type with the given type.
@@ -295,8 +321,29 @@ impl<'a> Type<'a> {
 	}
 
 	/// Is the current type a superset of the given type?
-	pub fn contains(&self, _other: Type<'a>) -> bool {
-		todo!()
+	pub fn contains(self, other: Type<'a>) -> bool {
+		if self == other {
+			return true;
+		}
+
+		if let TypeKind::Never | TypeKind::None = other.data.kind {
+			return true;
+		}
+
+		if other.is_invalid() {
+			return self.contains(other.get_valid());
+		}
+
+		match self.data.kind {
+			TypeKind::Unit => false,
+			TypeKind::None => false,
+			TypeKind::Never => false,
+			TypeKind::Any => true,
+			TypeKind::Builtin(_) => false,
+			TypeKind::Unknown => true,
+			TypeKind::Invalid(inner) => inner.is_none() || inner.contains(other),
+			TypeKind::Sum(a, b) => a.contains(other) || b.contains(other),
+		}
 	}
 
 	#[inline]
@@ -375,6 +422,7 @@ enum TypeKind<'a> {
 	Unknown,
 	Invalid(Type<'a>),
 	Builtin(Primitive),
+	Sum(Type<'a>, Type<'a>),
 }
 
 impl<'a> TypeData<'a> {
@@ -422,6 +470,9 @@ impl<'a> Debug for TypeData<'a> {
 			TypeKind::Builtin(typ) => {
 				write!(f, "{typ:?}")?;
 				ptr = self.as_ptr() != types.builtin(typ).as_ptr();
+			}
+			TypeKind::Sum(a, b) => {
+				write!(f, "{a:?} | {b:?}")?;
 			}
 		}
 		if ptr {

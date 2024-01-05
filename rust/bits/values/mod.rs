@@ -16,7 +16,7 @@ pub enum Value<'a> {
 	Token(Token),
 	Let(Var<'a>),
 	Var(Var<'a>),
-	BinaryOp(Symbol),
+	BinaryOp(OpKey),
 	Group { scoped: bool },
 	Print,
 }

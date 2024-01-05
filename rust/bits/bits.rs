@@ -59,6 +59,25 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	lexer.add_symbols(["+", "-", "*", "/", "="]);
 	ctx.set_lexer(lexer);
 
+	let ops = ctx.ops();
+	let types = ctx.types();
+
+	let t_sint = types.sint();
+
+	let mul = ops.get(OpKey(OpKind::Core, Symbol::str("*")));
+	mul.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
+		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
+		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
+		Ok(Value::SInt(lhs * rhs))
+	});
+
+	let add = ops.get(OpKey(OpKind::Core, Symbol::str("+")));
+	add.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
+		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
+		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
+		Ok(Value::SInt(lhs + rhs))
+	});
+
 	let bindings = ctx.bindings();
 
 	bindings
@@ -110,7 +129,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	Ok(())
 }
 
-pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<Value<'a>> {
+pub fn execute<'a>(ctx: ContextRef<'a>, out: Writer<'a>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();

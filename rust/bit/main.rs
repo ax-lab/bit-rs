@@ -84,33 +84,33 @@ mod tests {
 
 	#[test]
 	fn simple_string() -> Result<()> {
-		let ctx = Context::new();
-		check(&ctx, Value::Str("abc"), "", "'abc'")
+		check(Value::Str("abc"), "", "'abc'")
 	}
 
 	#[test]
 	fn simple_int() -> Result<()> {
-		let ctx = Context::new();
-		check(&ctx, Value::SInt(42), "", "42")
+		check(Value::SInt(42), "", "42")
 	}
 
 	#[test]
 	fn hello_world() -> Result<()> {
-		let ctx = Context::new();
-		check(&ctx, Value::Unit, "hello world\n", "print 'hello world'")
+		check(Value::Unit, "hello world\n", "print 'hello world'")
 	}
 
 	#[test]
 	fn simple_variable() -> Result<()> {
-		let ctx = Context::new();
-		check(&ctx, Value::SInt(42), "", src(["let x = 42", "x"]))
+		check(Value::SInt(42), "", src(["let x = 42", "x"]))
+	}
+
+	#[test]
+	#[cfg(off)]
+	fn recursive_variable() -> Result<()> {
+		check(Value::SInt(42), "", src(["let x = this"]))
 	}
 
 	#[test]
 	fn variable_shadowing() -> Result<()> {
-		let ctx = Context::new();
 		check(
-			&ctx,
 			Value::SInt(69),
 			"42\n",
 			src(["let x = 42", "print x", "let x = 69", "x"]),
@@ -119,23 +119,20 @@ mod tests {
 
 	#[test]
 	fn simple_expression() -> Result<()> {
-		let ctx = Context::new();
 		check(
-			&ctx,
 			Value::SInt(42),
 			"",
 			src(["let x = 5", "let y = 2", "let z = y * y", "x * y * z + y"]),
 		)
 	}
 
-	fn check<'a, T: Into<String>>(
-		ctx: &'a Context,
-		expected_value: Value<'a>,
-		expected_output: &str,
-		code: T,
-	) -> Result<()> {
+	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
 		let mut out = String::new();
 
+		// ignore the incoming value lifetime
+		let expected_value: Value = unsafe { std::mem::transmute(expected_value) };
+
+		let ctx = Context::new();
 		let ctx = ctx.get();
 		init_context(ctx)?;
 

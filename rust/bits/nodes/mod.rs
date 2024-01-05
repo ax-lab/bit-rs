@@ -47,6 +47,7 @@ impl<'a> NodeContext<'a> {
 			parent: Default::default(),
 			index: Default::default(),
 			status: 0.into(),
+			output: self.ctx.types().unknown().into(),
 		});
 		let node = Node { data };
 		self.reindex_node(node);
@@ -74,6 +75,7 @@ pub struct NodeData<'a> {
 	parent: Cell<Option<Node<'a>>>,
 	index: Cell<usize>,
 	status: Cell<u8>,
+	output: Cell<Type<'a>>,
 }
 
 impl<'a> Node<'a> {
@@ -94,6 +96,14 @@ impl<'a> Node<'a> {
 		self.data.value.set(value);
 		self.data.status.set(0);
 		self.context().nodes().reindex_node(self)
+	}
+
+	pub fn output(self) -> Type<'a> {
+		self.data.output.get()
+	}
+
+	pub fn set_output(self, typ: Type<'a>) {
+		self.data.output.set(typ);
 	}
 
 	#[inline]

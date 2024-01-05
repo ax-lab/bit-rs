@@ -33,6 +33,7 @@ impl<'a> OpContext<'a> {
 				ctx: self.ctx,
 				nullary: Default::default(),
 				unary: Default::default(),
+				binary: Default::default(),
 			};
 			let data = self.ctx.arena().store(data);
 			OpTable { data }
@@ -41,14 +42,31 @@ impl<'a> OpContext<'a> {
 	}
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum OpKind {
 	Core,
 	User(Symbol),
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct OpKey(pub OpKind, pub Symbol);
+
+impl Display for OpKey {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let Self(kind, sym) = self;
+		match kind {
+			OpKind::Core => write!(f, "op")?,
+			OpKind::User(s) => {
+				s.write_name(f, false)?;
+				write!(f, ".op")?
+			}
+		};
+		write!(f, "(")?;
+		sym.write_name(f, false)?;
+		write!(f, ")")?;
+		Ok(())
+	}
+}
 
 #[derive(Copy, Clone)]
 pub struct OpTable<'a> {
@@ -60,6 +78,7 @@ struct OpTableData<'a> {
 	ctx: ContextRef<'a>,
 	nullary: RwLock<HashMap<Type<'a>, Nullary<'a>>>,
 	unary: RwLock<HashMap<(Type<'a>, Type<'a>), Unary<'a>>>,
+	binary: RwLock<HashMap<(Type<'a>, (Type<'a>, Type<'a>)), Binary<'a>>>,
 }
 
 impl<'a> OpTable<'a> {
@@ -67,11 +86,11 @@ impl<'a> OpTable<'a> {
 		self.data.key
 	}
 
-	pub fn define_nullary(&self, op: Type<'a>) -> Nullary<'a> {
-		Self::define(&self.data.nullary, op, || {
+	pub fn define_nullary(&self, out: Type<'a>) -> Nullary<'a> {
+		Self::define(&self.data.nullary, out, || {
 			let data = NullaryData {
 				key: self.data.key,
-				typ: op,
+				out,
 				eval: Default::default(),
 			};
 			let data = self.data.ctx.arena().store(data);
@@ -79,11 +98,12 @@ impl<'a> OpTable<'a> {
 		})
 	}
 
-	pub fn define_unary(&self, op: (Type<'a>, Type<'a>)) -> Unary<'a> {
-		Self::define(&self.data.unary, op, || {
+	pub fn define_unary(&self, out: Type<'a>, arg: Type<'a>) -> Unary<'a> {
+		Self::define(&self.data.unary, (out, arg), || {
 			let data = UnaryData {
 				key: self.data.key,
-				typ: op,
+				out,
+				arg,
 				eval: Default::default(),
 			};
 			let data = self.data.ctx.arena().store(data);
@@ -91,12 +111,78 @@ impl<'a> OpTable<'a> {
 		})
 	}
 
-	pub fn get_nullary(&self, op: Type<'a>) -> Option<Nullary<'a>> {
-		self.data.nullary.read().unwrap().get(&op).copied()
+	pub fn define_binary(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Binary<'a> {
+		Self::define(&self.data.binary, (out, args), || {
+			let data = BinaryData {
+				key: self.data.key,
+				out,
+				args,
+				eval: Default::default(),
+			};
+			let data = self.data.ctx.arena().store(data);
+			Binary { data }
+		})
 	}
 
-	pub fn get_unary(&self, op: (Type<'a>, Type<'a>)) -> Option<Unary<'a>> {
-		self.data.unary.read().unwrap().get(&op).copied()
+	pub fn get_nullary(&self, op_out: Type<'a>) -> Vec<Nullary<'a>> {
+		let table = self.data.nullary.read().unwrap();
+		let mut list = Vec::new();
+		for (out, op) in table.iter() {
+			if op_out.contains(*out) {
+				list.push(*op);
+			}
+		}
+		list
+	}
+
+	pub fn get_unary(&self, op_out: Type<'a>, op_arg: Type<'a>) -> Vec<Unary<'a>> {
+		let table = self.data.unary.read().unwrap();
+		let mut list = Vec::new();
+		for ((out, arg), op) in table.iter() {
+			if op_out.contains(*out) && arg.contains(op_arg) {
+				list.push(*op);
+			}
+		}
+		list
+	}
+
+	pub fn get_binary_output(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Type<'a> {
+		let table = self.data.binary.read().unwrap();
+		let types = self.data.ctx.types();
+		let mut op_out = types.none();
+		for op in table.values() {
+			if op.matches(out, args) {
+				op_out = op_out.sum(op.out());
+			}
+		}
+		op_out
+	}
+
+	pub fn get_binary(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Result<Binary<'a>> {
+		let table = self.data.binary.read().unwrap();
+		let mut list = Vec::new();
+		for op in table.values() {
+			if op.matches(out, args) {
+				list.push(*op);
+			}
+		}
+
+		let op = self.data.key;
+		let (lhs, rhs) = args;
+		match list.len() {
+			0 => err!("{op} not defined for ({lhs}, {rhs}) -> {out}"),
+			1 => Ok(list[0]),
+			_ => {
+				let mut output = format!("multiple {op} definitions for ({lhs}, {rhs}) -> {out}:\n");
+				for it in list {
+					let lhs = it.lhs();
+					let rhs = it.rhs();
+					let out = it.out();
+					output = format!("{output}\n- ({lhs}, {rhs}) -> {out}");
+				}
+				err!(output.to_error())
+			}
+		}
 	}
 
 	fn define<K: Hash + Eq, V: Copy, F: FnOnce() -> V>(map: &RwLock<HashMap<K, V>>, key: K, init: F) -> V {
@@ -109,8 +195,9 @@ impl<'a> OpTable<'a> {
 	}
 }
 
-type NullaryEval<'a> = fn(ContextRef<'a>) -> Result<Value<'a>>;
-type UnaryEval<'a> = fn(ContextRef<'a>, Value<'a>) -> Result<Value<'a>>;
+type NullaryEval<'a> = fn(&mut Runtime<'a>) -> Result<Value<'a>>;
+type UnaryEval<'a> = fn(&mut Runtime<'a>, Value<'a>) -> Result<Value<'a>>;
+type BinaryEval<'a> = fn(&mut Runtime<'a>, Value<'a>, Value<'a>) -> Result<Value<'a>>;
 
 #[derive(Copy, Clone)]
 pub struct Nullary<'a> {
@@ -119,7 +206,7 @@ pub struct Nullary<'a> {
 
 struct NullaryData<'a> {
 	key: OpKey,
-	typ: Type<'a>,
+	out: Type<'a>,
 	eval: AtomicPtr<NullaryEval<'a>>,
 }
 
@@ -130,14 +217,14 @@ impl<'a> Nullary<'a> {
 			.store(func as *const NullaryEval as *mut _, SyncOrder::Relaxed);
 	}
 
-	pub fn eval(&self, ctx: ContextRef<'a>) -> Result<Value<'a>> {
+	pub fn eval(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
 		let eval = self.data.eval.load(SyncOrder::Relaxed);
 		if let Some(eval) = unsafe { eval.as_ref() } {
-			(eval)(ctx)
+			(eval)(rt)
 		} else {
 			let key = self.data.key;
-			let typ = self.data.typ;
-			err!("eval not defined for {key:?}<{typ:?}>")
+			let out = self.data.out;
+			err!("eval not defined for {key:?}<{out:?}>")
 		}
 	}
 }
@@ -149,7 +236,8 @@ pub struct Unary<'a> {
 
 struct UnaryData<'a> {
 	key: OpKey,
-	typ: (Type<'a>, Type<'a>),
+	out: Type<'a>,
+	arg: Type<'a>,
 	eval: AtomicPtr<()>,
 }
 
@@ -159,16 +247,90 @@ impl<'a> Unary<'a> {
 		self.data.eval.store(func, SyncOrder::Relaxed);
 	}
 
-	pub fn eval(&self, ctx: ContextRef<'a>, value: Value<'a>) -> Result<Value<'a>> {
+	pub fn eval(&self, rt: &mut Runtime<'a>, value: Value<'a>) -> Result<Value<'a>> {
 		let eval = self.data.eval.load(SyncOrder::Relaxed);
 		if !eval.is_null() {
 			let eval: UnaryEval<'a> = unsafe { std::mem::transmute(eval) };
-			(eval)(ctx, value)
+			(eval)(rt, value)
 		} else {
 			let key = self.data.key;
-			let typ = self.data.typ;
-			err!("eval not defined for {key:?}<{typ:?}>")
+			let arg = self.data.arg;
+			let out = self.data.out;
+			err!("eval not defined for {key:?}<{arg:?} -> {out:?}>")
 		}
+	}
+}
+
+#[derive(Copy, Clone)]
+pub struct Binary<'a> {
+	data: &'a BinaryData<'a>,
+}
+
+struct BinaryData<'a> {
+	key: OpKey,
+	out: Type<'a>,
+	args: (Type<'a>, Type<'a>),
+	eval: AtomicPtr<()>,
+}
+
+impl<'a> Binary<'a> {
+	pub fn set_eval(&self, func: BinaryEval<'a>) {
+		let func = func as *mut ();
+		self.data.eval.store(func, SyncOrder::Relaxed);
+	}
+
+	pub fn matches(&self, out: Type<'a>, (lhs, rhs): (Type<'a>, Type<'a>)) -> bool {
+		out.contains(self.out()) && self.lhs().contains(lhs) && self.rhs().contains(rhs)
+	}
+
+	pub fn out(&self) -> Type<'a> {
+		self.data.out
+	}
+
+	pub fn lhs(&self) -> Type<'a> {
+		self.data.args.0
+	}
+
+	pub fn rhs(&self) -> Type<'a> {
+		self.data.args.1
+	}
+
+	pub fn eval(&self, rt: &mut Runtime<'a>, lhs: Value<'a>, rhs: Value<'a>) -> Result<Value<'a>> {
+		let eval = self.data.eval.load(SyncOrder::Relaxed);
+		if !eval.is_null() {
+			let eval: BinaryEval<'a> = unsafe { std::mem::transmute(eval) };
+			(eval)(rt, lhs, rhs)
+		} else {
+			let key = self.data.key;
+			let args = self.data.args;
+			let out = self.data.out;
+			err!("eval not defined for {key:?}<{args:?} -> {out:?}>")
+		}
+	}
+}
+
+impl<'a> Eq for Binary<'a> {}
+
+impl<'a> PartialEq for Binary<'a> {
+	fn eq(&self, other: &Self) -> bool {
+		self.data as *const _ == other.data as *const _
+	}
+}
+
+impl<'a> Hash for Binary<'a> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        (self.data as *const BinaryData).hash(state);
+    }
+}
+
+impl<'a> Debug for Binary<'a> {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		let op = self.data.key;
+		let out = self.out();
+		let lhs = self.lhs();
+		let rhs = self.rhs();
+		let ptr = self.data.eval.load(SyncOrder::Relaxed);
+		write!(f, "{op} = ({lhs}, {rhs}) -> {out} #{ptr:?}")
 	}
 }
 

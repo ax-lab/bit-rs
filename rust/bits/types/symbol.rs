@@ -80,7 +80,11 @@ impl Symbol {
 
 	pub fn write_name(&self, f: &mut Formatter, allow_brackets: bool) -> std::fmt::Result {
 		if let Ok(str) = self.as_str() {
-			write!(f, "{str:?}")
+			if allow_brackets {
+				write!(f, "{str:?}")
+			} else {
+				write!(f, "{str}")
+			}
 		} else {
 			if allow_brackets {
 				write!(f, "(")?;

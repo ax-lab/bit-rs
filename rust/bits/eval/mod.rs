@@ -281,7 +281,7 @@ impl<'a> Evaluator<'a> for EvalBinaryOp {
 				None => op_node,
 				Some(op_prev) => {
 					let span = Span::merge(op_prev.span(), op_node.span());
-					let node = ctx.node(Value::BinaryOp(op), span);
+					let node = ctx.node(Value::BinaryOp(OpKey(OpKind::Core, op)), span);
 					node.flag_done();
 					if self.group_right {
 						node.append_nodes([op_node, op_prev]);

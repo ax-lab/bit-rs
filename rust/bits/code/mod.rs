@@ -6,14 +6,14 @@ mod vars;
 
 pub use vars::*;
 
-pub struct Runtime<'a, 'b> {
+pub struct Runtime<'a> {
 	ctx: ContextRef<'a>,
-	out: Writer<'b>,
+	out: Writer<'a>,
 	vars: HashMap<Var<'a>, Value<'a>>,
 }
 
-impl<'a, 'b> Runtime<'a, 'b> {
-	pub fn new(ctx: ContextRef<'a>, out: Writer<'b>) -> Self {
+impl<'a> Runtime<'a> {
+	pub fn new(ctx: ContextRef<'a>, out: Writer<'a>) -> Self {
 		Self {
 			ctx,
 			out,
@@ -38,6 +38,7 @@ pub enum Expr<'a> {
 	Print(&'a [Code<'a>]),
 	Let(Var<'a>, &'a Code<'a>),
 	Var(Var<'a>),
+	BinaryOp(Binary<'a>, &'a Code<'a>, &'a Code<'a>),
 }
 
 impl<'a> Expr<'a> {}
@@ -62,7 +63,7 @@ impl<'a> Code<'a> {
 		self.node
 	}
 
-	pub fn execute<'b>(&self, rt: &mut Runtime<'a, 'b>) -> Result<Value<'a>> {
+	pub fn execute(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
 		let span = self.span;
 		let value = match self.expr {
 			Expr::None => Value::None,
@@ -120,6 +121,11 @@ impl<'a> Code<'a> {
 					err!("variable {var} has not been initialized (code at {span})")?
 				}
 			}
+			Expr::BinaryOp(op, lhs, rhs) => {
+				let lhs = lhs.execute(rt)?;
+				let rhs = rhs.execute(rt)?;
+				op.eval(rt, lhs, rhs)?
+			}
 		};
 		Ok(value)
 	}
@@ -145,15 +151,15 @@ impl<'a, 'b> NodeChain<'a, 'b> {
 }
 
 impl<'a> Node<'a> {
-	pub fn eval_type(self) -> Result<Type<'a>> {
+	pub fn eval_type(self, output: Type<'a>) -> Result<Type<'a>> {
 		let head = NodeChain {
 			value: self,
 			prev: None,
 		};
-		self.do_eval_type(&head)
+		self.do_eval_type(output, &head)
 	}
 
-	fn do_eval_type<'b>(self, chain: &NodeChain<'a, 'b>) -> Result<Type<'a>> {
+	fn do_eval_type<'b>(self, output: Type<'a>, chain: &NodeChain<'a, 'b>) -> Result<Type<'a>> {
 		if chain.contains(self) {
 			let span = self.span();
 			err!("at {span}: node type depends on itself: {self}")?;
@@ -169,15 +175,16 @@ impl<'a> Node<'a> {
 		let seq_type = || {
 			self.nodes()
 				.last()
-				.map(|x| x.do_eval_type(chain))
+				.map(|x| x.do_eval_type(output, chain))
 				.unwrap_or(Ok(types.none()))
 		};
 		let child_type = || {
 			self.nodes()
 				.first()
-				.map(|x| x.do_eval_type(chain))
+				.map(|x| x.do_eval_type(output, chain))
 				.unwrap_or(Ok(types.none()))
 		};
+		let ops = self.context().ops();
 		let typ = match self.value() {
 			Value::None => types.none(),
 			Value::Unit => types.unit(),
@@ -191,12 +198,19 @@ impl<'a> Node<'a> {
 			Value::Token(Token::Literal) => types.str(),
 			Value::Token(_) => types.invalid(),
 			Value::Let(_) => child_type()?,
-			Value::Var(var) => var.node().do_eval_type(chain)?,
+			Value::Var(var) => var.node().do_eval_type(output, chain)?,
 			Value::Group { .. } => child_type()?,
 			Value::Print => types.unit(),
-			Value::BinaryOp(_op) => {
-				// TODO: implement this
-				types.invalid()
+			Value::BinaryOp(op) => {
+				let nodes = self.nodes();
+				if nodes.len() != 2 {
+					types.invalid()
+				} else {
+					let ops = ops.get(op);
+					let lhs = nodes[0].do_eval_type(types.any(), chain)?;
+					let rhs = nodes[1].do_eval_type(types.any(), chain)?;
+					ops.get_binary_output(output, (lhs, rhs))
+				}
 			}
 		};
 		Ok(typ)
@@ -242,9 +256,19 @@ impl<'a> Node<'a> {
 					err!("at {span}: binary operator must have exactly two children: {self}")?;
 				}
 				let nodes = self.nodes();
-				let lhs = nodes[0].eval_type()?;
-				let rhs = nodes[1].eval_type()?;
-				err!("at {span}: operator {op} for {lhs} and {rhs} is not defined: {self}")?
+				let lhs = nodes[0];
+				let rhs = nodes[1];
+
+				let lhs_type = lhs.eval_type(lhs.output())?;
+				let rhs_type = rhs.eval_type(rhs.output())?;
+
+				let lhs = nodes[0].compile()?;
+				let rhs = nodes[1].compile()?;
+				let (lhs, rhs) = ctx.store((lhs, rhs));
+
+				let out = self.output();
+				let op = ctx.ops().get(op).get_binary(out, (lhs_type, rhs_type))?;
+				Expr::BinaryOp(op, lhs, rhs)
 			}
 		};
 
