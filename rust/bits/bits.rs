@@ -101,6 +101,16 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalIndentedBlock);
 
 	bindings
+		.match_any(Match::word("if"))
+		.with_precedence(Value::SInt(100))
+		.bind(EvalIf);
+
+	bindings
+		.match_any(Match::word("else"))
+		.with_precedence(Value::SInt(101))
+		.bind(EvalElse);
+
+	bindings
 		.match_any(Match::word("print"))
 		.with_precedence(Value::SInt(100))
 		.bind(EvalPrint);
@@ -127,19 +137,47 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		});
 
 	bindings
-		.match_any(Match::token(Token::Literal))
+		.match_any(Match::token_kind(Token::Literal))
 		.with_precedence(Value::SInt(i64::MAX))
 		.bind(Output);
 
 	bindings
-		.match_any(Match::token(Token::Integer))
+		.match_any(Match::token_kind(Token::Integer))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(Output);
+
+	bindings
+		.match_any(Match::token(Token::Word(Symbol::str("true"))))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(EvalBool(true));
+
+	bindings
+		.match_any(Match::token(Token::Word(Symbol::str("false"))))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(EvalBool(false));
+
+	bindings
+		.match_any(Match::kind_of(Value::Bool(true)))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(Output);
+
+	bindings
+		.match_any(Match::kind_of(Value::Group { scoped: false }))
+		.with_precedence(Value::SInt(i64::MAX))
+		.bind(Output);
+
+	bindings
+		.match_any(Match::kind_of(Value::Sequence {
+			scoped: false,
+			indented: false,
+		}))
 		.with_precedence(Value::SInt(i64::MAX))
 		.bind(Output);
 
 	Ok(())
 }
 
-pub fn execute<'a>(ctx: ContextRef<'a>, out: Writer<'a>) -> Result<Value<'a>> {
+pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<Value<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();
@@ -207,7 +245,11 @@ pub fn execute<'a>(ctx: ContextRef<'a>, out: Writer<'a>) -> Result<Value<'a>> {
 		println!("\n=============================\n");
 	}
 
-	let mut rt = Runtime::new(ctx, out);
+	// SAFETY: rust dumb-assery makes it impossible to split the lifetime of
+	// the writer from the context without infecting the whole thing with an
+	// additional lifetime parameter for the runtime writer, but we only
+	// care the that the writer is valid during this function so f- that.
+	let mut rt = Runtime::new(ctx, unsafe { std::mem::transmute(out) });
 	let mut output = Value::None;
 	for it in program {
 		output = it.execute(&mut rt)?;

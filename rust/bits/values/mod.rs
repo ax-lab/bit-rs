@@ -21,6 +21,30 @@ pub enum Value<'a> {
 	Sequence { scoped: bool, indented: bool },
 	Print,
 	Indent(bool),
+	If,
+}
+
+impl<'a> Value<'a> {
+	pub fn as_bool(&self) -> Result<bool> {
+		let value = match self {
+			&Value::None => false,
+			&Value::Unit => false,
+			&Value::Bool(v) => v,
+			&Value::Str(v) => v.len() > 0,
+			&Value::SInt(v) => v != 0,
+			&Value::UInt(v) => v != 0,
+			_ => format!("value is not a valid boolean: {self}").err()?,
+		};
+		Ok(value)
+	}
+
+	pub fn is_block(&self) -> bool {
+		match self {
+			Value::Group { .. } => true,
+			Value::Sequence { .. } => true,
+			_ => false,
+		}
+	}
 }
 
 impl<'a> Display for Value<'a> {
@@ -57,6 +81,7 @@ impl<'a> Debug for Value<'a> {
 			Value::Sequence { scoped, indented } => write!(f, "Sequence(scoped={scoped}, indented={indented})"),
 			Value::Print => write!(f, "Print"),
 			Value::Indent(up) => write!(f, "Ident({up})"),
+			Value::If => write!(f, "If"),
 		}
 	}
 }

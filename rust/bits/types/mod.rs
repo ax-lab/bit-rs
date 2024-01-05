@@ -238,6 +238,25 @@ impl<'a> Type<'a> {
 		!self.is_invalid()
 	}
 
+	pub fn is_valid_bool(self) -> bool {
+		match self.data.kind {
+			TypeKind::None => false,
+			TypeKind::Unit => true,
+			TypeKind::Never => true,
+			TypeKind::Any => false,
+			TypeKind::Unknown => false,
+			TypeKind::Invalid(_) => false,
+			TypeKind::Builtin(typ) => match typ {
+				Primitive::Bool => true,
+				Primitive::String => true,
+				Primitive::SInt(_) => true,
+				Primitive::UInt(_) => true,
+				_ => todo!("is_valid_bool: {typ:?} is not implemented"),
+			},
+			TypeKind::Sum(a, b) => a.is_valid_bool() && b.is_valid_bool(),
+		}
+	}
+
 	/// Is this type an invalid type?
 	pub fn is_invalid(self) -> bool {
 		matches!(self.data.kind, TypeKind::Invalid(..))

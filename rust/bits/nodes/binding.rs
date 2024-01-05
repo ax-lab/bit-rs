@@ -26,8 +26,12 @@ impl<'a> Match<'a> {
 		Self::kind_of(Value::Indent(true))
 	}
 
-	pub fn token(token: Token) -> Self {
+	pub fn token_kind(token: Token) -> Self {
 		Self::Token(discriminant(&token))
+	}
+
+	pub fn token(token: Token) -> Self {
+		Self::Exact(Value::Token(token))
 	}
 
 	pub fn unit() -> Self {
@@ -97,6 +101,7 @@ impl<'a> Key<'a> {
 			Value::Let(_) => Self::as_kind(v),
 			Value::Var(_) => Self::as_kind(v),
 			Value::Indent(_) => Self::as_kind(v),
+			Value::If { .. } => Self::as_kind(v),
 
 			Value::Str(_) => Self::as_value(v),
 			Value::BinaryOp(_) => Self::as_value(v),

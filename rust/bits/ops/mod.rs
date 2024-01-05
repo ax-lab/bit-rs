@@ -318,9 +318,9 @@ impl<'a> PartialEq for Binary<'a> {
 }
 
 impl<'a> Hash for Binary<'a> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        (self.data as *const BinaryData).hash(state);
-    }
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		(self.data as *const BinaryData).hash(state);
+	}
 }
 
 impl<'a> Debug for Binary<'a> {

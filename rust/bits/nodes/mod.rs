@@ -162,6 +162,32 @@ impl<'a> Node<'a> {
 		}
 	}
 
+	pub fn find_prev(self) -> Option<Node<'a>> {
+		if let Some(prev) = self.prev() {
+			Some(prev)
+		} else if let Some(parent) = self.parent() {
+			parent.find_prev()
+		} else {
+			None
+		}
+	}
+
+	pub fn enter_block(self) -> Option<Node<'a>> {
+		let mut cur = self;
+		while cur.value().is_block() {
+			cur = if let Some(child) = cur.node(0) {
+				child
+			} else {
+				return None;
+			}
+		}
+		Some(cur)
+	}
+
+	pub fn find_prev_non_block(self) -> Option<Node<'a>> {
+		self.find_prev().and_then(|node| node.enter_block())
+	}
+
 	pub fn prev(self) -> Option<Node<'a>> {
 		let index = self.index();
 		if index == 0 {

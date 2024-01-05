@@ -39,6 +39,11 @@ pub enum Expr<'a> {
 	Let(Var<'a>, &'a Code<'a>),
 	Var(Var<'a>),
 	BinaryOp(Binary<'a>, &'a Code<'a>, &'a Code<'a>),
+	If {
+		cond: &'a Code<'a>,
+		when_true: &'a Code<'a>,
+		otherwise: &'a Code<'a>,
+	},
 }
 
 impl<'a> Expr<'a> {}
@@ -63,7 +68,7 @@ impl<'a> Code<'a> {
 		self.node
 	}
 
-	pub fn execute(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
+	pub fn execute<'b>(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
 		let span = self.span;
 		let value = match self.expr {
 			Expr::None => Value::None,
@@ -125,6 +130,21 @@ impl<'a> Code<'a> {
 				let lhs = lhs.execute(rt)?;
 				let rhs = rhs.execute(rt)?;
 				op.eval(rt, lhs, rhs)?
+			}
+			Expr::If {
+				cond,
+				when_true,
+				otherwise,
+			} => {
+				let cond = cond.execute(rt)?;
+				let cond = cond
+					.as_bool()
+					.chain(|err| err!("if condition: {err} (code at {span})"))?;
+				if cond {
+					when_true.execute(rt)
+				} else {
+					otherwise.execute(rt)
+				}?
 			}
 		};
 		Ok(value)
@@ -214,6 +234,21 @@ impl<'a> Node<'a> {
 					ops.get_binary_output(output, (lhs, rhs))
 				}
 			}
+			Value::If => {
+				let nodes = self.nodes();
+				let arity = nodes.len();
+				if arity <= 1 || arity > 3 {
+					types.invalid()
+				} else {
+					let t1 = nodes[1].do_eval_type(output, chain)?;
+					let t2 = if nodes.len() > 2 {
+						nodes[2].do_eval_type(if t1.is_proper() { t1 } else { output }, chain)?
+					} else {
+						types.unit()
+					};
+					t1.sum(t2)
+				}
+			}
 		};
 		Ok(typ)
 	}
@@ -273,6 +308,41 @@ impl<'a> Node<'a> {
 				let out = self.output();
 				let op = ctx.ops().get(op).get_binary(out, (lhs_type, rhs_type))?;
 				Expr::BinaryOp(op, lhs, rhs)
+			}
+			Value::If => {
+				let arity = self.len();
+				if arity <= 1 || arity > 3 {
+					err!("at {span}: invalid arity ({arity}) for if operator")?;
+				}
+
+				let nodes = self.nodes();
+				let cond = nodes[0];
+				let cond_type = nodes[0].eval_type(cond.output())?;
+				if !cond_type.is_valid_bool() {
+					let span = cond.span();
+					err!("at {span}: if condition must be a valid boolean (got {cond_type})")?;
+				}
+
+				let cond = cond.compile()?;
+				let when_true = nodes[1].compile()?;
+				let otherwise = if nodes.len() > 2 {
+					nodes[2].compile()?
+				} else {
+					Code {
+						expr: Expr::Unit,
+						span: Span::empty(),
+						node: None,
+					}
+				};
+
+				let cond = ctx.store(cond);
+				let when_true = ctx.store(when_true);
+				let otherwise = ctx.store(otherwise);
+				Expr::If {
+					cond,
+					when_true,
+					otherwise,
+				}
 			}
 		};
 

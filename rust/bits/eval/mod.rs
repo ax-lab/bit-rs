@@ -465,3 +465,149 @@ impl<'a> Evaluator<'a> for EvalIndentedBlock {
 		Ok(())
 	}
 }
+
+#[derive(Debug)]
+pub struct EvalIf;
+
+impl<'a> Evaluator<'a> for EvalIf {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (node, targets) in binding.by_parent() {
+			for it in targets {
+				it.keep_alive();
+			}
+
+			let head = targets.first().unwrap();
+			if head.index() != 0 || !node.value().is_block() {
+				continue;
+			}
+
+			head.ignore();
+
+			let cond = node.remove_nodes(..);
+			let cond = &cond[1..];
+			node.ignore();
+
+			let block = loop {
+				let span = if let Some(next) = node.next() {
+					if let Value::Sequence { indented, .. } = next.value() {
+						if indented {
+							break next;
+						}
+					}
+					next.span()
+				} else {
+					head.span()
+				};
+				err!("at {span}: if statement must followed by an indented block")?;
+			};
+
+			let root = node.parent().unwrap();
+			let index = node.index();
+			root.remove_nodes(index..index + 2);
+
+			let if_cond = ctx.node(Value::Group { scoped: true }, Span::range(cond));
+			if_cond.set_nodes(cond);
+
+			let if_node = ctx.node(Value::If, Span::merge(head.span(), block.span()));
+			if_node.append_nodes([if_cond, block]);
+			if_node.flag_done();
+
+			root.insert_nodes(index, [if_node]);
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalElse;
+
+impl<'a> Evaluator<'a> for EvalElse {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
+		for (node, targets) in binding.by_parent() {
+			for it in targets {
+				it.keep_alive();
+			}
+
+			let head = targets.first().unwrap();
+			if head.index() != 0 || !node.value().is_block() {
+				continue;
+			}
+
+			head.ignore();
+
+			let span_else = head.span();
+			let if_node = if let Some(if_node) = head.find_prev_non_block() {
+				if let Value::If = if_node.value() {
+					if if_node.len() != 2 {
+						err!("at {span_else}: invalid `else` statement (if block arity)")?;
+					}
+					if_node
+				} else {
+					let span = if_node.span();
+					err!("at {span}: expected `if` before `else` at {span_else}")?
+				}
+			} else {
+				err!("at {span_else}: invalid `else` statement (missing if)")?
+			};
+
+			let expr = node.remove_nodes(..);
+			let expr = &expr[1..];
+			node.ignore();
+
+			let block = loop {
+				let span = if let Some(next) = node.next() {
+					if let Value::Sequence { indented, .. } = next.value() {
+						if indented {
+							break next;
+						}
+					}
+					next.span()
+				} else {
+					head.span()
+				};
+				err!("at {span}: else statement must followed by an indented block")?;
+			};
+
+			let root = node.parent().unwrap();
+			let index = node.index();
+			root.remove_nodes(index..index + 2);
+
+			if root.len() == 0 && root.value().is_block() {
+				root.remove();
+				root.ignore();
+			}
+
+			let block = if expr.len() > 0 {
+				let expr_node = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+				expr_node.set_nodes(expr);
+
+				let new_block = ctx.node(
+					Value::Group { scoped: true },
+					Span::merge(expr_node.span(), block.span()),
+				);
+				block.remove();
+				new_block.append_nodes([expr_node, block]);
+				new_block
+			} else {
+				block
+			};
+
+			block.remove();
+			if_node.push_node(block);
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalBool(pub bool);
+
+impl<'a> Evaluator<'a> for EvalBool {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		let _ = ctx;
+		for it in binding.nodes() {
+			it.set_value(Value::Bool(self.0));
+		}
+		Ok(())
+	}
+}

@@ -6,11 +6,24 @@ use super::*;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub trait ErrorIter {
-	fn combine<T: Default>(self, head: &str) -> Result<T>;
+	fn combine<T: Default, U: AsRef<str>>(self, head: U) -> Result<T>;
+}
+
+pub trait ResultChain<T> {
+	fn chain<U: FnOnce(Error) -> Result<T>>(self, chain: U) -> Result<T>;
+}
+
+impl<T> ResultChain<T> for Result<T> {
+	fn chain<U: FnOnce(Error) -> Result<T>>(self, chain: U) -> Result<T> {
+		match self {
+			Ok(value) => Ok(value),
+			Err(err) => chain(err),
+		}
+	}
 }
 
 impl<I: IntoIterator<Item = Error>> ErrorIter for I {
-	fn combine<T: Default>(self, head: &str) -> Result<T> {
+	fn combine<T: Default, U: AsRef<str>>(self, head: U) -> Result<T> {
 		let mut output = Ok(T::default());
 		let mut text = String::new();
 		for it in self.into_iter() {
@@ -29,6 +42,7 @@ impl<I: IntoIterator<Item = Error>> ErrorIter for I {
 			}
 		}
 		if text.len() > 0 {
+			let head = head.as_ref();
 			return Err(Error::new(format!("{head}generated multiple errors:\n\n{text}")));
 		}
 		output

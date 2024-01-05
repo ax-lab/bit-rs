@@ -131,13 +131,36 @@ mod tests {
 		check(
 			Value::Unit,
 			"this is true\n",
+			src(["if true:", "\tprint 'this is true'", "else:", "\tprint 'this is false'"]),
+		)?;
+
+		check(
+			Value::Unit,
+			"this is false\n",
 			src([
-				"if true:",
+				"if false:",
 				"\tprint 'this is true'",
 				"else:",
-				"\tprint 'this is false'\n",
+				"\tprint 'this is false'",
 			]),
-		)
+		)?;
+
+		check(Value::SInt(42), "", src(["if true:", "\t42", "else:", "\t69"]))?;
+		check(Value::SInt(69), "", src(["if false:", "\t42", "else:", "\t69"]))?;
+
+		Ok(())
+	}
+
+	#[test]
+	#[ignore]
+	fn else_if_expression() -> Result<()> {
+		check(
+			Value::SInt(2),
+			"",
+			src(["if false:", "\t1", "else if true:", "\t2", "else:", "\t3"]),
+		)?;
+
+		Ok(())
 	}
 
 	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
@@ -153,21 +176,28 @@ mod tests {
 		let src = ctx.sources().from_string("eval", code);
 		ctx.node(Value::Source(src), src.span());
 
-		let w = Writer::fmt(&mut out);
-		let ans = execute(ctx, w);
+		let ans = {
+			let w = Writer::fmt(&mut out);
+			let ans = execute(ctx, w);
 
-		let ans = match ans {
-			Ok(val) => val,
-			Err(err) => {
-				let mut out = Writer::stderr();
-
-				dump_stats(true);
-				let _ = writeln!(out, "\n===[ PROGRAM ]======");
-				let _ = dump_nodes(&mut out, ctx);
-				let _ = writeln!(out, "\n===[ EVAL ERROR ]===\n\n{err}\n\n====================\n");
-				return Err("Eval failed".to_error());
-			}
+			let ans = match ans {
+				Ok(val) => val,
+				Err(err) => {
+					let mut out = dump_context(ctx);
+					let _ = writeln!(out, "\n===[ EVAL ERROR ]===\n\n{err}\n\n====================\n");
+					return Err("Eval failed".to_error());
+				}
+			};
+			ans
 		};
+
+		if ans != expected_value || expected_output != out.as_str() {
+			let mut out = Writer::stderr();
+			dump_stats(true);
+			let _ = writeln!(out, "\n===[ PROGRAM ]======");
+			let _ = dump_nodes(&mut out, ctx);
+		}
+
 		assert_eq!(expected_value, ans);
 		assert_eq!(expected_output, out);
 		Ok(())
@@ -176,5 +206,13 @@ mod tests {
 	fn src<T: IntoIterator<Item = U>, U: Into<String>>(src: T) -> String {
 		let lines = src.into_iter().map(|x| x.into()).collect::<Vec<_>>();
 		lines.join("\n")
+	}
+
+	fn dump_context(ctx: ContextRef) -> Writer {
+		let mut out = Writer::stderr();
+		dump_stats(true);
+		let _ = writeln!(out, "\n===[ PROGRAM ]======");
+		let _ = dump_nodes(&mut out, ctx);
+		out
 	}
 }
