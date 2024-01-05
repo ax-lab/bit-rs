@@ -11,6 +11,10 @@ pub struct TypeContext<'a> {
 
 	none: TypeData<'a>,
 	unit: TypeData<'a>,
+	str: TypeData<'a>,
+	bool: TypeData<'a>,
+	sint: TypeData<'a>,
+	uint: TypeData<'a>,
 	never: TypeData<'a>,
 	any: TypeData<'a>,
 	unknown: TypeData<'a>,
@@ -35,6 +39,26 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			kind: TypeKind::Unit,
 		};
 
+		let str = TypeData {
+			ctx,
+			kind: TypeKind::Builtin(Primitive::String),
+		};
+
+		let bool = TypeData {
+			ctx,
+			kind: TypeKind::Builtin(Primitive::Bool),
+		};
+
+		let sint = TypeData {
+			ctx,
+			kind: TypeKind::Builtin(Primitive::SInt(64)),
+		};
+
+		let uint = TypeData {
+			ctx,
+			kind: TypeKind::Builtin(Primitive::UInt(64)),
+		};
+
 		let never = TypeData {
 			ctx,
 			kind: TypeKind::Never,
@@ -54,6 +78,10 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 			ctx,
 			none,
 			unit,
+			str,
+			bool,
+			sint,
+			uint,
 			never,
 			any,
 			unknown,
@@ -100,7 +128,26 @@ impl<'a> TypeContext<'a> {
 
 	/// Default string type.
 	pub fn str(&'a self) -> Type<'a> {
-		self.builtin(Primitive::String)
+		let data = &self.str;
+		Type { data }
+	}
+
+	/// Builtin boolean type.
+	pub fn bool(&'a self) -> Type<'a> {
+		let data = &self.bool;
+		Type { data }
+	}
+
+	/// Default signed integer.
+	pub fn sint(&'a self) -> Type<'a> {
+		let data = &self.sint;
+		Type { data }
+	}
+
+	/// Default unsigned integer.
+	pub fn uint(&'a self) -> Type<'a> {
+		let data = &self.uint;
+		Type { data }
 	}
 
 	/// Empty invalid type. An invalid type indicates a type that is not valid
@@ -433,5 +480,10 @@ mod tests {
 		assert_ne!(types.unit().to_unique(), types.unit());
 		assert_eq!(types.none().to_unique(), types.none());
 		assert_eq!(types.unknown().to_unique(), types.unknown());
+
+		assert_eq!(types.str(), types.builtin(Primitive::String));
+		assert_eq!(types.bool(), types.builtin(Primitive::Bool));
+		assert_eq!(types.sint(), types.builtin(Primitive::SInt(64)));
+		assert_eq!(types.uint(), types.builtin(Primitive::UInt(64)));
 	}
 }

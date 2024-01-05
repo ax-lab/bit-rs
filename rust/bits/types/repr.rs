@@ -51,7 +51,13 @@ impl<'a> Type<'a> {
 
 impl<'a> TypeContext<'a> {
 	pub fn builtin(&'a self, typ: Primitive) -> Type<'a> {
-		self.builtin.get(&typ, |typ| self.store(self.from_primitive(typ)))
+		match typ {
+			Primitive::Bool => self.bool(),
+			Primitive::String => self.str(),
+			Primitive::SInt(64) => self.sint(),
+			Primitive::UInt(64) => self.uint(),
+			_ => self.builtin.get(&typ, |typ| self.store(self.from_primitive(typ))),
+		}
 	}
 
 	fn from_primitive(&self, typ: Primitive) -> TypeData<'a> {

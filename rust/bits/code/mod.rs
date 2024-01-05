@@ -125,7 +125,83 @@ impl<'a> Code<'a> {
 	}
 }
 
+struct NodeChain<'a, 'b> {
+	value: Node<'a>,
+	prev: Option<&'b NodeChain<'a, 'b>>,
+}
+
+impl<'a, 'b> NodeChain<'a, 'b> {
+	pub fn contains(&self, node: Node<'a>) -> bool {
+		if let Some(prev) = self.prev {
+			if prev.value == node {
+				true
+			} else {
+				prev.contains(node)
+			}
+		} else {
+			false
+		}
+	}
+}
+
 impl<'a> Node<'a> {
+	pub fn eval_type(self) -> Result<Type<'a>> {
+		let head = NodeChain {
+			value: self,
+			prev: None,
+		};
+		self.do_eval_type(&head)
+	}
+
+	fn do_eval_type<'b>(self, chain: &NodeChain<'a, 'b>) -> Result<Type<'a>> {
+		if chain.contains(self) {
+			let span = self.span();
+			err!("at {span}: node type depends on itself: {self}")?;
+		}
+
+		let chain = NodeChain {
+			value: self,
+			prev: Some(chain),
+		};
+		let chain = &chain;
+
+		let types = self.context().types();
+		let seq_type = || {
+			self.nodes()
+				.last()
+				.map(|x| x.do_eval_type(chain))
+				.unwrap_or(Ok(types.none()))
+		};
+		let child_type = || {
+			self.nodes()
+				.first()
+				.map(|x| x.do_eval_type(chain))
+				.unwrap_or(Ok(types.none()))
+		};
+		let typ = match self.value() {
+			Value::None => types.none(),
+			Value::Unit => types.unit(),
+			Value::Bool(_) => types.bool(),
+			Value::Str(_) => types.str(),
+			Value::SInt(_) => types.sint(),
+			Value::UInt(_) => types.uint(),
+			Value::Source(_) => types.invalid(),
+			Value::Module(_) => seq_type()?,
+			Value::Token(Token::Integer) => types.sint(),
+			Value::Token(Token::Literal) => types.str(),
+			Value::Token(_) => types.invalid(),
+			Value::Let(_) => child_type()?,
+			Value::Var(var) => var.node().do_eval_type(chain)?,
+			Value::Group { .. } => child_type()?,
+			Value::Print => types.unit(),
+			Value::BinaryOp(_op) => {
+				// TODO: implement this
+				types.invalid()
+			}
+		};
+		Ok(typ)
+	}
+
 	pub fn compile(self) -> Result<Code<'a>> {
 		let span = self.span();
 		let ctx = self.context();
@@ -165,7 +241,10 @@ impl<'a> Node<'a> {
 				if self.len() != 2 {
 					err!("at {span}: binary operator must have exactly two children: {self}")?;
 				}
-				err!("at {span}: operator {op} not implemented: {self}")?
+				let nodes = self.nodes();
+				let lhs = nodes[0].eval_type()?;
+				let rhs = nodes[1].eval_type()?;
+				err!("at {span}: operator {op} for {lhs} and {rhs} is not defined: {self}")?
 			}
 		};
 
