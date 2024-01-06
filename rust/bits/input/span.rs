@@ -38,6 +38,42 @@ impl<'a> Span<'a> {
 		}
 	}
 
+	pub fn display_text(&self) -> Option<Cow<'a, str>> {
+		const MAX_LEN: usize = 30;
+
+		let text = self.text();
+		let text = if let Some(index) = text.find(|chr| chr == '\r' || chr == '\n') {
+			&text[..index]
+		} else {
+			text
+		};
+		let text = text.trim_end();
+		let suffix = if text.len() < self.len() { "…" } else { "" };
+		let (prefix, text) = {
+			let trimmed = text.trim_start();
+			let prefix = if trimmed.len() < text.len() { "…" } else { "" };
+			(prefix, trimmed)
+		};
+
+		let (text, suffix) = if let Some((n, _)) = text.char_indices().nth(MAX_LEN) {
+			(&text[..n], "…")
+		} else {
+			(text, suffix)
+		};
+
+		if text.len() > 0 {
+			let text = if suffix.len() + prefix.len() > 0 {
+				let text = format!("{prefix}{text}{suffix}");
+				Cow::Owned(text)
+			} else {
+				Cow::Borrowed(text)
+			};
+			Some(text)
+		} else {
+			None
+		}
+	}
+
 	pub fn up_to(&self, other: Self) -> Self {
 		assert_eq!(self.src, other.src);
 		assert!(self.sta <= other.sta);

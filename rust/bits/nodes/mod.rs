@@ -377,7 +377,11 @@ impl<'a> Debug for Node<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		let span = self.span();
 		if !span.is_empty() {
-			write!(f, "{:?} -- {:?}", self.value(), self.span())
+			write!(f, "{:?} -- {:?}", self.value(), self.span())?;
+			if let Some(text) = span.display_text() {
+				write!(f, "    # {text}")?;
+			}
+			Ok(())
 		} else {
 			write!(f, "{:?}", self.value())
 		}
@@ -400,6 +404,9 @@ impl<'a> Writable for Node<'a> {
 				let span = it.span();
 				if !span.is_empty() {
 					write!(f, "\n... at {span}")?;
+					if let Some(text) = span.display_text() {
+						write!(f, "    # {text}")?;
+					}
 				}
 			}
 			f.dedent();

@@ -467,28 +467,34 @@ impl<'a> Evaluator<'a> for EvalIndentedBlock {
 }
 
 #[derive(Debug)]
-pub struct EvalIf;
+pub struct EvalBlock<'a>(
+	pub &'static str,
+	pub fn(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()>,
+);
 
-impl<'a> Evaluator<'a> for EvalIf {
+impl<'a> Evaluator<'a> for EvalBlock<'a> {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, mut binding: BoundNodes<'a>) -> Result<()> {
-		for (node, targets) in binding.by_parent() {
-			for it in targets {
+		let kind = self.0;
+		let init = self.1;
+
+		for (parent, matches) in binding.by_parent() {
+			for it in matches {
 				it.keep_alive();
 			}
 
-			let head = targets.first().unwrap();
-			if head.index() != 0 || !node.value().is_block() {
+			let head = matches.first().unwrap();
+			if head.index() != 0 || !parent.value().is_block() {
 				continue;
 			}
 
 			head.ignore();
 
-			let cond = node.remove_nodes(..);
-			let cond = &cond[1..];
-			node.ignore();
+			let expr = parent.remove_nodes(..);
+			let expr = &expr[1..];
+			parent.ignore();
 
 			let block = loop {
-				let span = if let Some(next) = node.next() {
+				let span = if let Some(next) = parent.next() {
 					if let Value::Sequence { indented, .. } = next.value() {
 						if indented {
 							break next;
@@ -498,21 +504,112 @@ impl<'a> Evaluator<'a> for EvalIf {
 				} else {
 					head.span()
 				};
-				err!("at {span}: if statement must followed by an indented block")?;
+				err!("at {span}: {kind} must followed by an indented block")?;
 			};
 
-			let root = node.parent().unwrap();
-			let index = node.index();
+			let root = parent.parent().unwrap();
+			let index = parent.index();
 			root.remove_nodes(index..index + 2);
 
-			let if_cond = ctx.node(Value::Group { scoped: true }, Span::range(cond));
-			if_cond.set_nodes(cond);
+			let root = if root.len() == 0 && root.value().is_block() {
+				root
+			} else {
+				let span = Span::merge(head.span(), block.span());
+				let root = ctx.node(Value::Group { scoped: true }, span);
+				root
+			};
 
-			let if_node = ctx.node(Value::If, Span::merge(head.span(), block.span()));
-			if_node.append_nodes([if_cond, block]);
-			if_node.flag_done();
+			init(ctx, root, expr, block)?;
+		}
+		Ok(())
+	}
+}
 
-			root.insert_nodes(index, [if_node]);
+pub fn eval_if<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
+	let if_cond = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+	if_cond.set_nodes(expr);
+
+	root.set_value(Value::If);
+	root.append_nodes([if_cond, block]);
+	Ok(())
+}
+
+pub fn eval_else<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
+	let (kind, expr) = if let Some(Value::Token(Token::Word(sym))) = expr.get(0).map(|x| x.value()) {
+		if sym == Symbol::str("if") {
+			expr[0].ignore();
+			(Value::ElseIf, &expr[1..])
+		} else {
+			let span = Span::range(expr);
+			err!("at {span}: else statement does not allow an expression")?
+		}
+	} else {
+		(Value::Else, expr)
+	};
+
+	root.set_value(kind);
+	root.flag_done();
+
+	if expr.len() > 0 {
+		let cond = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+		cond.set_nodes(expr);
+		root.append_nodes([cond, block]);
+	} else {
+		root.append_nodes([block]);
+	}
+
+	Ok(())
+}
+
+#[derive(Debug)]
+pub struct EvalIf;
+
+impl<'a> Evaluator<'a> for EvalIf {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		let _ = ctx;
+		for if_node in binding.nodes() {
+			let parent = if let Some(parent) = if_node.parent() {
+				parent
+			} else {
+				continue;
+			};
+
+			let index = if_node.index();
+			let mut chain = 0;
+			while let Some(Value::ElseIf | Value::Else) = parent.node(index + chain + 1).map(|x| x.value()) {
+				chain += 1;
+			}
+
+			let chain = parent.remove_nodes(index + 1..index + 1 + chain);
+			if chain.len() > 0 {
+				for it in chain.iter().take(chain.len() - 1) {
+					if it.value() == Value::Else {
+						let span = it.span();
+						err!("at {span}: else must be the last statement in an if chain")?;
+					}
+				}
+
+				let last = chain.last().unwrap();
+				let (mut else_node, chain) = if let Value::Else = last.value() {
+					debug_assert!(last.len() == 1);
+					let node = last.node(0).unwrap();
+					last.ignore();
+					node.remove();
+					(Some(node), &chain[..chain.len() - 1])
+				} else {
+					(None, chain)
+				};
+
+				for &else_if in chain.iter().rev() {
+					else_if.set_value(Value::If);
+					if let Some(else_node) = else_node {
+						else_if.push_node(else_node);
+					}
+					else_node = Some(else_if);
+				}
+
+				if_node.push_node(else_node.unwrap());
+			}
 		}
 		Ok(())
 	}

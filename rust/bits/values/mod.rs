@@ -22,6 +22,8 @@ pub enum Value<'a> {
 	Print,
 	Indent(bool),
 	If,
+	ElseIf,
+	Else,
 }
 
 impl<'a> Value<'a> {
@@ -82,6 +84,8 @@ impl<'a> Debug for Value<'a> {
 			Value::Print => write!(f, "Print"),
 			Value::Indent(up) => write!(f, "Ident({up})"),
 			Value::If => write!(f, "If"),
+			Value::ElseIf => write!(f, "ElseIf"),
+			Value::Else => write!(f, "Else"),
 		}
 	}
 }

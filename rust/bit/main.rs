@@ -83,6 +83,11 @@ mod tests {
 	use super::*;
 
 	#[test]
+	fn empty() -> Result<()> {
+		check(Value::None, "", "")
+	}
+
+	#[test]
 	fn simple_string() -> Result<()> {
 		check(Value::Str("abc"), "", "'abc'")
 	}
@@ -152,12 +157,107 @@ mod tests {
 	}
 
 	#[test]
-	#[ignore]
 	fn else_if_expression() -> Result<()> {
 		check(
-			Value::SInt(2),
-			"",
-			src(["if false:", "\t1", "else if true:", "\t2", "else:", "\t3"]),
+			Value::Unit,
+			"start\nA\ndone\n",
+			src([
+				"print 'start'",
+				"if true:",
+				"\tprint 'A'",
+				"else if true:",
+				"\tprint 'B'",
+				"else if true:",
+				"\tprint 'C'",
+				"else:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
+		)?;
+
+		check(
+			Value::Unit,
+			"start\nB\ndone\n",
+			src([
+				"print 'start'",
+				"if false:",
+				"\tprint 'A'",
+				"else if true:",
+				"\tprint 'B'",
+				"else if true:",
+				"\tprint 'C'",
+				"else:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
+		)?;
+
+		check(
+			Value::Unit,
+			"start\nC\ndone\n",
+			src([
+				"print 'start'",
+				"if false:",
+				"\tprint 'A'",
+				"else if false:",
+				"\tprint 'B'",
+				"else if true:",
+				"\tprint 'C'",
+				"else:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
+		)?;
+
+		check(
+			Value::Unit,
+			"start\nD\ndone\n",
+			src([
+				"print 'start'",
+				"if false:",
+				"\tprint 'A'",
+				"else if false:",
+				"\tprint 'B'",
+				"else if false:",
+				"\tprint 'C'",
+				"else:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
+		)?;
+
+		check(
+			Value::Unit,
+			"start\nD\ndone\n",
+			src([
+				"print 'start'",
+				"if false:",
+				"\tprint 'A'",
+				"else if false:",
+				"\tprint 'B'",
+				"else if false:",
+				"\tprint 'C'",
+				"else if true:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
+		)?;
+
+		check(
+			Value::Unit,
+			"start\ndone\n",
+			src([
+				"print 'start'",
+				"if false:",
+				"\tprint 'A'",
+				"else if false:",
+				"\tprint 'B'",
+				"else if false:",
+				"\tprint 'C'",
+				"else if false:",
+				"\tprint 'D'",
+				"print 'done'",
+			]),
 		)?;
 
 		Ok(())

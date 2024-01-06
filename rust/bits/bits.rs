@@ -1,4 +1,5 @@
 use std::{
+	borrow::Cow,
 	cell::{Cell, Ref, RefCell, UnsafeCell},
 	cmp::Ordering,
 	collections::{HashMap, HashSet},
@@ -103,12 +104,17 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	bindings
 		.match_any(Match::word("if"))
 		.with_precedence(Value::SInt(100))
-		.bind(EvalIf);
+		.bind(EvalBlock("if statement", eval_if));
 
 	bindings
 		.match_any(Match::word("else"))
+		.with_precedence(Value::SInt(100))
+		.bind(EvalBlock("else", eval_else));
+
+	bindings
+		.match_any(Match::kind_of(Value::If))
 		.with_precedence(Value::SInt(101))
-		.bind(EvalElse);
+		.bind(EvalIf);
 
 	bindings
 		.match_any(Match::word("print"))

@@ -249,6 +249,8 @@ impl<'a> Node<'a> {
 					t1.sum(t2)
 				}
 			}
+			Value::ElseIf => types.invalid(),
+			Value::Else => types.invalid(),
 		};
 		Ok(typ)
 	}
@@ -309,6 +311,8 @@ impl<'a> Node<'a> {
 				let op = ctx.ops().get(op).get_binary(out, (lhs_type, rhs_type))?;
 				Expr::BinaryOp(op, lhs, rhs)
 			}
+			Value::ElseIf => Expr::None,
+			Value::Else => Expr::None,
 			Value::If => {
 				let arity = self.len();
 				if arity <= 1 || arity > 3 {
