@@ -352,7 +352,8 @@ impl<'a> Node<'a> {
 					otherwise,
 				}
 			}
-			Value::For => todo!(),
+			Value::For => Expr::None,
+			Value::While => todo!(),
 		};
 
 		if expr == Expr::None && self.value() != Value::None {

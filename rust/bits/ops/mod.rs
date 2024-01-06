@@ -6,6 +6,22 @@ pub mod matching;
 pub use arity::*;
 pub use matching::*;
 
+pub fn op_add() -> OpKey {
+	OpKey(OpKind::Core, Symbol::str("+"))
+}
+
+pub fn op_mul() -> OpKey {
+	OpKey(OpKind::Core, Symbol::str("*"))
+}
+
+pub fn op_in() -> OpKey {
+	OpKey(OpKind::Core, Symbol::str("in"))
+}
+
+pub fn op_range() -> OpKey {
+	OpKey(OpKind::Core, Symbol::str(".."))
+}
+
 pub struct OpContext<'a> {
 	ctx: ContextRef<'a>,
 	map: RwLock<HashMap<OpKey, OpTable<'a>>>,
@@ -50,6 +66,12 @@ pub enum OpKind {
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct OpKey(pub OpKind, pub Symbol);
+
+impl Default for OpKey {
+	fn default() -> Self {
+		OpKey(OpKind::Core, Symbol::default())
+	}
+}
 
 impl Display for OpKey {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {

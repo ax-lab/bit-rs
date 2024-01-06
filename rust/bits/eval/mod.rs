@@ -753,7 +753,203 @@ pub struct EvalFor;
 
 impl<'a> Evaluator<'a> for EvalFor {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
-		let _ = (ctx, binding);
-		err!("not implemented")
+		for &it in binding.nodes() {
+			let span = it.span();
+			let nodes = it.nodes();
+			it.assert_arity("for loop", 2)?;
+
+			let head = nodes[0].actual_value();
+			let body = nodes[1];
+			let info = head.get_for_loop(ctx, it)?;
+
+			head.ignore_all();
+			body.remove();
+
+			let new_loop = ctx.node(
+				Value::Sequence {
+					scoped: true,
+					indented: false,
+				},
+				span,
+			);
+			if let Some(init) = info.init {
+				new_loop.push_node(init);
+			}
+
+			let while_node = ctx.node(Value::While, span);
+			let body = if let Some(increment) = info.increment {
+				let body = ctx.node(
+					Value::Sequence {
+						scoped: false,
+						indented: false,
+					},
+					body.span(),
+				);
+				body.append_nodes([body, increment]);
+				body
+			} else {
+				body
+			};
+			while_node.append_nodes([info.condition, body]);
+			new_loop.push_node(while_node);
+
+			it.replace(new_loop);
+		}
+		Ok(())
+	}
+}
+
+/***
+|  GOAL:
+|
+|  The goal is to support scenarios like the following while generating the
+|  equivalent plain while loop at compile time, but supporting arbitrary
+|  types and expressions:
+|
+|      for i in a...b:
+|          f(i)
+|
+|      for i in (a..b).map(x -> x * 2):
+|          f(i)
+|
+|  TODO:
+|
+|  1) Nodes need a proper compile-time type system, separate from the runtime
+|     type, that can encode `map` as a custom defined function that can
+|     execute at compile-time and manipulate arbitrary nodes conforming to an
+|     iterator pattern interface.
+|
+|     1.1) `map` should be able to be user defined in the source code
+|     1.2) `map` and the iterator pattern should be dynamically dispatched
+|  		 at compile time based on the node compile-time type.
+|
+|  2) The compile-time type system should be aware of the runtime types for the
+|     nodes, as those have an effect on the codegen output.
+|
+|     For example, the `map` function could fallback to a `map` function in
+|     in a user-defined type; or a generic compile-time implementation could
+|     use a runtime iterator interface as a generic fallback.
+|
+|  3) Nodes should carry a mutable `Type` that corresponds to the runtime type
+|     for a particular node and can be used to infer the actual type for an
+|     expression.
+|
+|     In the example above, `i` would start with a type define by the `a`
+|     implementation of the range pattern, that would get applied by `map`
+|     and finally by the `for` implementation. Then the `f(i)` call operator
+|     dispatch could refine the type based on the available `f` definitions.
+|
+|  IDEAS:
+|
+|  - Value is a defacto concrete type for a Node, but is currently acting
+|    double duty as a runtime value. This should probably be split.
+|
+|  - `map` could be realized as a compile time function (a.k.a. macro) with
+|    a pattern matched receiver where the pattern is based on the node type
+|    (currently `Value`).
+|
+|    . How would `map` get dispatched syntactically? Using a variation of the
+|      current node binding, most likely.
+|
+|    . Once the dispatch is triggered, there's the actual lookup of available
+|      operations given a node type, and then evaluation. This is an extended
+|      version of what this eval stuff is doing.
+|
+|  - All the while, the node would also carry its mutable rt type reference,
+|    shared with all nodes that use the same type. Note that some nodes could
+|    actually derive types from the base type, so a sort of dependency tracking
+|    and/or observer pattern could be used to keep types in sync.
+|
+***/
+
+pub struct IteratorPattern<'a> {
+	pub init: Option<Node<'a>>,
+	pub condition: Node<'a>,
+	pub increment: Option<Node<'a>>,
+}
+
+pub struct RangeExpr<'a> {
+	pub start: Node<'a>,
+	pub condition: fn(ctx: ContextRef<'a>, Node<'a>) -> Result<Node<'a>>,
+	pub increment: fn(ctx: ContextRef<'a>, Node<'a>) -> Result<Node<'a>>,
+}
+
+pub struct SequenceExpr<'a> {
+	pub next: fn(ctx: ContextRef<'a>, Node<'a>) -> Result<Node<'a>>,
+	pub prev: fn(ctx: ContextRef<'a>, Node<'a>) -> Result<Node<'a>>,
+	pub before: fn(ctx: ContextRef<'a>, Node<'a>, Node<'a>) -> Result<Node<'a>>,
+}
+
+impl<'a> Node<'a> {
+	fn get_for_loop(self, ctx: ContextRef<'a>, _root: Node<'a>) -> Result<IteratorPattern<'a>> {
+		let span = self.span();
+		match self.value() {
+			Value::BinaryOp(key) => {
+				if key == op_in() {
+					self.assert_arity("for in expr ", 2)?;
+
+					let nodes = self.nodes();
+					let id = nodes[0].as_name()?;
+					let range = nodes[1].actual_value().get_range_expr(ctx, "for in loop")?;
+
+					let init = ctx.node(Value::LetDecl(id), nodes[0].span());
+					init.append_nodes([range.start]);
+
+					let var_node = || ctx.node(Value::Token(Token::Word(id)), nodes[0].span());
+					let condition = (range.condition)(ctx, var_node())?;
+					let increment = (range.increment)(ctx, var_node())?;
+
+					return Ok(IteratorPattern {
+						init: Some(init),
+						condition: condition,
+						increment: Some(increment),
+					});
+				}
+			}
+			_ => {}
+		}
+
+		err!("at {span}: invalid for loop expression: {self}")
+	}
+
+	fn get_range_expr<T: AsRef<str>>(self, ctx: ContextRef<'a>, at: T) -> Result<RangeExpr<'a>> {
+		let span = self.span();
+		let at = at.as_ref();
+		match self.value() {
+			Value::BinaryOp(key) => {
+				if key == op_range() {
+					self.assert_arity("range", 2)?;
+					let nodes = self.nodes();
+
+					let _seq = nodes[0].actual_value().get_sequence_expr(ctx, "range")?;
+					let _start = nodes[0].deep_copy();
+
+					// return Ok(RangeExpr { start });
+					todo!()
+				}
+			}
+			_ => {}
+		}
+		err!("at {span}: invalid range expression in {at}: {self}")
+	}
+
+	fn get_sequence_expr<T: AsRef<str>>(self, ctx: ContextRef<'a>, at: T) -> Result<SequenceExpr<'a>> {
+		let span = self.span();
+		let at = at.as_ref();
+		let typ = self.eval_type(ctx.types().any())?;
+		if let Some((next, prev)) = typ.get_sequence_next_prev_steps() {
+			let _ = (next, prev);
+			todo!()
+		} else {
+			err!("at {span}: expression of type {typ} cannot be used for {at}: {self}")?;
+		}
+
+		err!("at {span}: expression is invalid for {at}: {self}")?
+	}
+}
+
+impl<'a> Type<'a> {
+	pub fn get_sequence_next_prev_steps(self) -> Option<(Value<'a>, Value<'a>)> {
+		None
 	}
 }

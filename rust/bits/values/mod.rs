@@ -26,6 +26,7 @@ pub enum Value<'a> {
 	ElseIf,
 	Else,
 	For,
+	While,
 }
 
 impl<'a> Value<'a> {
@@ -90,6 +91,7 @@ impl<'a> Debug for Value<'a> {
 			Value::ElseIf => write!(f, "ElseIf"),
 			Value::Else => write!(f, "Else"),
 			Value::For => write!(f, "For"),
+			Value::While => write!(f, "While"),
 		}
 	}
 }

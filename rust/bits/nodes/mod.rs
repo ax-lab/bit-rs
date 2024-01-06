@@ -87,6 +87,13 @@ impl<'a> Node<'a> {
 		self.context().arena()
 	}
 
+	pub fn deep_copy(self) -> Node<'a> {
+		let head = self.context().node(self.value(), self.span());
+		head.set_output(self.output());
+		head.append_nodes(self.nodes().iter().map(|x| x.deep_copy()));
+		head
+	}
+
 	#[inline]
 	pub fn value(self) -> Value<'a> {
 		self.data.value.get()
@@ -338,6 +345,13 @@ impl<'a> Node<'a> {
 		self.set_status(FLAG_SILENT | FLAG_DONE, true);
 	}
 
+	pub fn ignore_all(self) {
+		self.ignore();
+		for it in self.nodes() {
+			it.ignore_all();
+		}
+	}
+
 	pub fn flag_silent(self) {
 		self.set_status(FLAG_SILENT, true);
 	}
@@ -407,7 +421,11 @@ impl<'a> From<&Node<'a>> for Node<'a> {
 
 impl<'a> Display for Node<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.value())
+		write!(f, "{}", self.value())?;
+		if let Some(text) = self.span().display_text() {
+			write!(f, " #{{ {text} }}")?;
+		}
+		Ok(())
 	}
 }
 

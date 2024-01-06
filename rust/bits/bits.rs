@@ -84,14 +84,14 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	let t_sint = types.sint();
 
-	let mul = ops.get(OpKey(OpKind::Core, Symbol::str("*")));
+	let mul = ops.get(op_mul());
 	mul.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
 		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
 		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
 		Ok(Value::SInt(lhs * rhs))
 	});
 
-	let add = ops.get(OpKey(OpKind::Core, Symbol::str("+")));
+	let add = ops.get(op_add());
 	add.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
 		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
 		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
@@ -156,7 +156,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::word("in"))
 		.with_precedence(Precedence::OpIn)
 		.bind(EvalBinaryOp {
-			op: OpKey(OpKind::Core, Symbol::str("in")),
+			op: op_in(),
 			group_right: false,
 		});
 
@@ -164,7 +164,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::symbol(".."))
 		.with_precedence(Precedence::OpRange)
 		.bind(EvalBinaryOp {
-			op: OpKey(OpKind::Core, Symbol::str("..")),
+			op: op_range(),
 			group_right: false,
 		});
 
@@ -172,7 +172,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::symbol("+"))
 		.with_precedence(Precedence::OpAdd)
 		.bind(EvalBinaryOp {
-			op: OpKey(OpKind::Core, Symbol::str("+")),
+			op: op_add(),
 			group_right: false,
 		});
 
@@ -180,7 +180,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::symbol("*"))
 		.with_precedence(Precedence::OpMul)
 		.bind(EvalBinaryOp {
-			op: OpKey(OpKind::Core, Symbol::str("*")),
+			op: op_mul(),
 			group_right: false,
 		});
 
@@ -237,7 +237,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(Output);
 
 	bindings
-		.match_any(Match::kind_of(Value::BinaryOp(OpKey(OpKind::Core, Symbol::empty()))))
+		.match_any(Match::kind_of(Value::BinaryOp(OpKey::default())))
 		.with_precedence(Precedence::Output)
 		.bind(Output);
 
