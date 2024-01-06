@@ -251,6 +251,7 @@ impl<'a> Node<'a> {
 			}
 			Value::ElseIf => types.invalid(),
 			Value::Else => types.invalid(),
+			Value::For => types.unit(),
 		};
 		Ok(typ)
 	}
@@ -348,6 +349,7 @@ impl<'a> Node<'a> {
 					otherwise,
 				}
 			}
+			Value::For => todo!(),
 		};
 
 		if expr == Expr::None && self.value() != Value::None {

@@ -292,7 +292,7 @@ impl<'a> Evaluator<'a> for EvalVar<'a> {
 
 #[derive(Debug)]
 pub struct EvalBinaryOp {
-	pub op: Symbol,
+	pub op: OpKey,
 	pub group_right: bool,
 }
 
@@ -318,8 +318,7 @@ impl<'a> Evaluator<'a> for EvalBinaryOp {
 				None => op_node,
 				Some(op_prev) => {
 					let span = Span::merge(op_prev.span(), op_node.span());
-					let node = ctx.node(Value::BinaryOp(OpKey(OpKind::Core, op)), span);
-					node.flag_done();
+					let node = ctx.node(Value::BinaryOp(op), span);
 					if self.group_right {
 						node.append_nodes([op_node, op_prev]);
 					} else {
@@ -561,6 +560,15 @@ pub fn eval_else<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], 
 	Ok(())
 }
 
+pub fn eval_for<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
+	let for_expr = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+	for_expr.set_nodes(expr);
+
+	root.set_value(Value::For);
+	root.append_nodes([for_expr, block]);
+	Ok(())
+}
+
 #[derive(Debug)]
 pub struct EvalIf;
 
@@ -706,5 +714,15 @@ impl<'a> Evaluator<'a> for EvalBool {
 			it.set_value(Value::Bool(self.0));
 		}
 		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalFor;
+
+impl<'a> Evaluator<'a> for EvalFor {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		let _ = (ctx, binding);
+		todo!()
 	}
 }

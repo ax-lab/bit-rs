@@ -104,6 +104,7 @@ impl<'a> Key<'a> {
 			Value::If { .. } => Self::as_kind(v),
 			Value::ElseIf { .. } => Self::as_kind(v),
 			Value::Else { .. } => Self::as_kind(v),
+			Value::For { .. } => Self::as_kind(v),
 
 			Value::Str(_) => Self::as_value(v),
 			Value::BinaryOp(_) => Self::as_value(v),

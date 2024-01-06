@@ -56,7 +56,7 @@ pub fn version() -> &'static str {
 pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	let mut lexer = GrammarLexer::new(DefaultGrammar);
 	lexer.add_symbols(["(", ")", "[", "]", "{", "}", "<", ">"]);
-	lexer.add_symbols([",", ";", ".", ":"]);
+	lexer.add_symbols([",", ";", ".", ":", ".."]);
 	lexer.add_symbols(["+", "-", "*", "/", "="]);
 	ctx.set_lexer(lexer);
 
@@ -112,6 +112,16 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalBlock("else", eval_else));
 
 	bindings
+		.match_any(Match::word("for"))
+		.with_precedence(Value::SInt(100))
+		.bind(EvalBlock("for statement", eval_for));
+
+	bindings
+		.match_any(Match::kind_of(Value::For))
+		.with_precedence(Value::SInt(101))
+		.bind(EvalFor);
+
+	bindings
 		.match_any(Match::kind_of(Value::If))
 		.with_precedence(Value::SInt(101))
 		.bind(EvalIf);
@@ -127,10 +137,26 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalLet);
 
 	bindings
+		.match_any(Match::word("in"))
+		.with_precedence(Value::SInt(500))
+		.bind(EvalBinaryOp {
+			op: OpKey(OpKind::Core, Symbol::str("in")),
+			group_right: false,
+		});
+
+	bindings
+		.match_any(Match::symbol(".."))
+		.with_precedence(Value::SInt(501))
+		.bind(EvalBinaryOp {
+			op: OpKey(OpKind::Core, Symbol::str("..")),
+			group_right: false,
+		});
+
+	bindings
 		.match_any(Match::symbol("+"))
 		.with_precedence(Value::SInt(1000))
 		.bind(EvalBinaryOp {
-			op: Symbol::str("+"),
+			op: OpKey(OpKind::Core, Symbol::str("+")),
 			group_right: false,
 		});
 
@@ -138,38 +164,40 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.match_any(Match::symbol("*"))
 		.with_precedence(Value::SInt(1001))
 		.bind(EvalBinaryOp {
-			op: Symbol::str("*"),
+			op: OpKey(OpKind::Core, Symbol::str("*")),
 			group_right: false,
 		});
 
+	let output_prec: Value = Value::SInt(i64::MAX);
+
 	bindings
 		.match_any(Match::token_kind(Token::Literal))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::token_kind(Token::Integer))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::token(Token::Word(Symbol::str("true"))))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(EvalBool(true));
 
 	bindings
 		.match_any(Match::token(Token::Word(Symbol::str("false"))))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(EvalBool(false));
 
 	bindings
 		.match_any(Match::kind_of(Value::Bool(true)))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::kind_of(Value::Group { scoped: false }))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
 		.bind(Output);
 
 	bindings
@@ -177,7 +205,12 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 			scoped: false,
 			indented: false,
 		}))
-		.with_precedence(Value::SInt(i64::MAX))
+		.with_precedence(output_prec)
+		.bind(Output);
+
+	bindings
+		.match_any(Match::kind_of(Value::BinaryOp(OpKey(OpKind::Core, Symbol::empty()))))
+		.with_precedence(output_prec)
 		.bind(Output);
 
 	Ok(())

@@ -263,6 +263,16 @@ mod tests {
 		Ok(())
 	}
 
+	#[test]
+	#[ignore]
+	fn simple_foreach() -> Result<()> {
+		check(
+			Value::Unit,
+			"1\n2\n3\n4\n5\ndone\n",
+			src(["for i in 1..6:", "\tprint i", "print 'done'"]),
+		)
+	}
+
 	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
 		let mut out = String::new();
 
