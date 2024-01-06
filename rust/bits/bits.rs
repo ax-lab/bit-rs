@@ -58,7 +58,8 @@ pub enum Precedence {
 	First,
 	LineSplit,
 	Indent,
-	Let,
+	LetDecl,
+	LetExpr,
 	BlockParse,
 	VarBinding,
 	OpIn,
@@ -141,8 +142,13 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	bindings
 		.match_any(Match::word("let"))
-		.with_precedence(Precedence::Let)
-		.bind(EvalLet);
+		.with_precedence(Precedence::LetExpr)
+		.bind(EvalLetExpr);
+
+	bindings
+		.match_any(Match::kind_of(Value::LetDecl(Symbol::empty())))
+		.with_precedence(Precedence::LetDecl)
+		.bind(EvalLetDecl);
 
 	// Operators
 

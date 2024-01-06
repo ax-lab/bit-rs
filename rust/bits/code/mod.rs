@@ -218,6 +218,7 @@ impl<'a> Node<'a> {
 			Value::Token(Token::Integer) => types.sint(),
 			Value::Token(Token::Literal) => types.str(),
 			Value::Token(_) => types.invalid(),
+			Value::LetDecl(_) => types.invalid(),
 			Value::Let(_) => child_type()?,
 			Value::Var(var) => var.node().do_eval_type(output, chain)?,
 			Value::Group { .. } => child_type()?,
@@ -252,6 +253,7 @@ impl<'a> Node<'a> {
 			Value::ElseIf => types.invalid(),
 			Value::Else => types.invalid(),
 			Value::For => types.unit(),
+			Value::While => types.unit(),
 		};
 		Ok(typ)
 	}
@@ -280,6 +282,7 @@ impl<'a> Node<'a> {
 				Expr::Str(str)
 			}
 			Value::Token(_) => Expr::None,
+			Value::LetDecl(_) => Expr::None,
 			Value::Let(var) => {
 				let code = self.compile_child()?;
 				let code = ctx.store(code);

@@ -98,6 +98,7 @@ impl<'a> Key<'a> {
 			Value::Group { .. } => Self::as_kind(v),
 			Value::Sequence { .. } => Self::as_kind(v),
 			Value::Print => Self::as_kind(v),
+			Value::LetDecl(_) => Self::as_kind(v),
 			Value::Let(_) => Self::as_kind(v),
 			Value::Var(_) => Self::as_kind(v),
 			Value::Indent(_) => Self::as_kind(v),

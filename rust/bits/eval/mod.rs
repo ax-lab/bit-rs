@@ -204,9 +204,9 @@ impl<'a> Evaluator<'a> for EvalPrint {
 }
 
 #[derive(Debug)]
-pub struct EvalLet;
+pub struct EvalLetExpr;
 
-impl<'a> Evaluator<'a> for EvalLet {
+impl<'a> Evaluator<'a> for EvalLetExpr {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		for it in binding.nodes() {
 			// keep alive by default to make loop easier
@@ -243,36 +243,67 @@ impl<'a> Evaluator<'a> for EvalLet {
 				continue;
 			};
 
-			let node = ctx.node(Value::None, span);
+			let node = ctx.node(Value::LetDecl(name), span);
+			node.set_nodes(expr);
+			parent.push_node(node);
+		}
+		Ok(())
+	}
+}
+
+#[derive(Debug)]
+pub struct EvalLetDecl;
+
+impl<'a> Evaluator<'a> for EvalLetDecl {
+	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
+		for it in binding.nodes() {
+			let span = it.span();
+			let name = if let Value::LetDecl(name) = it.value() {
+				name
+			} else {
+				err!("at {span}: invalid let decl value -- {it}")?
+			};
+
 			let let_value = if let Some((src, mut range)) = it.get_scope() {
-				range.start = if let Some(last) = expr.last() {
+				range.start = if let Some(last) = it.nodes().last() {
 					last.span().end()
 				} else {
 					span.end()
 				};
-				let var = ctx.variables().declare(name, node);
-				ctx.bindings()
-					.match_at(src, range, Match::word(name))
-					.with_precedence(Precedence::VarBinding)
-					.bind(EvalVar(var));
 
-				let expr_span = Span::range(expr);
-				ctx.bindings()
-					.match_at(src, expr_span.pos()..expr_span.end(), Match::word(Symbol::str("this")))
-					.with_precedence(Precedence::VarBinding)
-					.bind(EvalVar(var));
-
+				let var = ctx.declare_var_range(name, *it, src, range);
 				Value::Let(var)
 			} else {
 				err!("let without scope at {span}")?
 			};
 
-			node.set_value(let_value);
-			node.set_nodes(expr);
-			node.flag_done();
-			parent.push_node(node);
+			it.set_value(let_value);
+			it.flag_done();
 		}
 		Ok(())
+	}
+}
+
+impl<'a> ContextRef<'a> {
+	pub fn declare_var(self, name: Symbol, node: Node<'a>, span: Span<'a>) -> Var<'a> {
+		let src = span.src();
+		let range = span.pos()..span.end();
+		self.declare_var_range(name, node, src, range)
+	}
+
+	pub fn declare_var_range(
+		self,
+		name: Symbol,
+		node: Node<'a>,
+		src: Source<'a>,
+		range: std::ops::Range<usize>,
+	) -> Var<'a> {
+		let var = self.variables().declare(name, node);
+		self.bindings()
+			.match_at(src, range, Match::word(name))
+			.with_precedence(Precedence::VarBinding)
+			.bind(EvalVar(var));
+		var
 	}
 }
 

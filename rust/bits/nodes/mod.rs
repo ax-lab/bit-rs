@@ -152,6 +152,44 @@ impl<'a> Node<'a> {
 		self.parent().and_then(|x| x.node(next))
 	}
 
+	pub fn as_name(self) -> Result<Symbol> {
+		let value_node = self.actual_value();
+		if let Value::Token(Token::Word(symbol)) = value_node.value() {
+			Ok(symbol)
+		} else {
+			let span = self.span();
+			err!("at {span}: expected an identifier, got {self}")
+		}
+	}
+
+	pub fn assert_arity<T: AsRef<str>>(self, kind: T, len: usize) -> Result<()> {
+		if self.len() != len {
+			let span = self.span();
+			let kind = kind.as_ref();
+			err!("at {span}: {kind} has the wrong arity (expected {len}) -- {self}")?;
+		}
+		Ok(())
+	}
+
+	pub fn actual_value(self) -> Node<'a> {
+		if self.len() == 1 && self.value().is_block() {
+			self.node(0).unwrap().actual_value()
+		} else {
+			self
+		}
+	}
+
+	pub fn replace(self, other: Node<'a>) -> bool {
+		if let Some(parent) = self.parent() {
+			let index = self.index();
+			self.remove();
+			parent.insert_nodes(index, [other]);
+			true
+		} else {
+			false
+		}
+	}
+
 	pub fn find_next(self) -> Option<Node<'a>> {
 		if let Some(next) = self.next() {
 			Some(next)
