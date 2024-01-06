@@ -165,7 +165,7 @@ impl<'a> BoundNodes<'a> {
 		self.value.val
 	}
 
-	pub fn order(&self) -> Value<'a> {
+	pub fn order(&self) -> Precedence {
 		self.value.ord
 	}
 
@@ -473,7 +473,7 @@ impl<'a> BindTable<'a> {
 			table: self,
 			sta,
 			end,
-			ord: Value::SInt(0),
+			ord: Precedence::Last,
 		}
 	}
 
@@ -499,7 +499,7 @@ pub struct Binding<'a> {
 	table: &'a BindTable<'a>,
 	sta: usize,
 	end: usize,
-	ord: Value<'a>,
+	ord: Precedence,
 }
 
 impl<'a> Binding<'a> {
@@ -517,7 +517,7 @@ impl<'a> Binding<'a> {
 		bindings.bind(self.table.ctx, value);
 	}
 
-	pub fn with_precedence(mut self, ord: Value<'a>) -> Self {
+	pub fn with_precedence(mut self, ord: Precedence) -> Self {
 		self.ord = ord;
 		self
 	}
@@ -527,7 +527,7 @@ struct BoundValue<'a> {
 	sta: usize,
 	end: usize,
 	val: &'a dyn Evaluator<'a>,
-	ord: Value<'a>,
+	ord: Precedence,
 }
 
 struct PatternBindings<'a> {

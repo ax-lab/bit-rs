@@ -53,6 +53,24 @@ pub fn version() -> &'static str {
 	"0.1.0"
 }
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub enum Precedence {
+	First,
+	LineSplit,
+	Indent,
+	Let,
+	BlockParse,
+	VarBinding,
+	OpIn,
+	OpRange,
+	OpAdd,
+	OpMul,
+	Print,
+	BlockEval,
+	Output,
+	Last,
+}
+
 pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	let mut lexer = GrammarLexer::new(DefaultGrammar);
 	lexer.add_symbols(["(", ")", "[", "]", "{", "}", "<", ">"]);
@@ -83,62 +101,54 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	bindings
 		.match_any(Match::source())
-		.with_precedence(Value::SInt(0))
+		.with_precedence(Precedence::First)
 		.bind(TokenizeSource);
 
 	bindings
 		.match_any(Match::exact(Value::Token(Token::Break)))
-		.with_precedence(Value::SInt(1))
+		.with_precedence(Precedence::LineSplit)
 		.bind(EvalLineBreak);
 
 	bindings
 		.match_any(Match::indent())
-		.with_precedence(Value::SInt(2))
+		.with_precedence(Precedence::Indent)
 		.bind(EvalIndent);
 
 	bindings
 		.match_any(Match::symbol(":"))
-		.with_precedence(Value::SInt(2))
+		.with_precedence(Precedence::Indent)
 		.bind(EvalIndentedBlock);
 
 	bindings
 		.match_any(Match::word("if"))
-		.with_precedence(Value::SInt(100))
+		.with_precedence(Precedence::BlockParse)
 		.bind(EvalBlock("if statement", eval_if));
 
 	bindings
 		.match_any(Match::word("else"))
-		.with_precedence(Value::SInt(100))
+		.with_precedence(Precedence::BlockParse)
 		.bind(EvalBlock("else", eval_else));
 
 	bindings
 		.match_any(Match::word("for"))
-		.with_precedence(Value::SInt(100))
+		.with_precedence(Precedence::BlockParse)
 		.bind(EvalBlock("for statement", eval_for));
 
 	bindings
-		.match_any(Match::kind_of(Value::For))
-		.with_precedence(Value::SInt(101))
-		.bind(EvalFor);
-
-	bindings
-		.match_any(Match::kind_of(Value::If))
-		.with_precedence(Value::SInt(101))
-		.bind(EvalIf);
-
-	bindings
 		.match_any(Match::word("print"))
-		.with_precedence(Value::SInt(100))
+		.with_precedence(Precedence::Print)
 		.bind(EvalPrint);
 
 	bindings
 		.match_any(Match::word("let"))
-		.with_precedence(Value::SInt(100))
+		.with_precedence(Precedence::Let)
 		.bind(EvalLet);
+
+	// Operators
 
 	bindings
 		.match_any(Match::word("in"))
-		.with_precedence(Value::SInt(500))
+		.with_precedence(Precedence::OpIn)
 		.bind(EvalBinaryOp {
 			op: OpKey(OpKind::Core, Symbol::str("in")),
 			group_right: false,
@@ -146,7 +156,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	bindings
 		.match_any(Match::symbol(".."))
-		.with_precedence(Value::SInt(501))
+		.with_precedence(Precedence::OpRange)
 		.bind(EvalBinaryOp {
 			op: OpKey(OpKind::Core, Symbol::str("..")),
 			group_right: false,
@@ -154,7 +164,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	bindings
 		.match_any(Match::symbol("+"))
-		.with_precedence(Value::SInt(1000))
+		.with_precedence(Precedence::OpAdd)
 		.bind(EvalBinaryOp {
 			op: OpKey(OpKind::Core, Symbol::str("+")),
 			group_right: false,
@@ -162,42 +172,54 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	bindings
 		.match_any(Match::symbol("*"))
-		.with_precedence(Value::SInt(1001))
+		.with_precedence(Precedence::OpMul)
 		.bind(EvalBinaryOp {
 			op: OpKey(OpKind::Core, Symbol::str("*")),
 			group_right: false,
 		});
 
-	let output_prec: Value = Value::SInt(i64::MAX);
+	// Block eval
+
+	bindings
+		.match_any(Match::kind_of(Value::For))
+		.with_precedence(Precedence::BlockEval)
+		.bind(EvalFor);
+
+	bindings
+		.match_any(Match::kind_of(Value::If))
+		.with_precedence(Precedence::BlockEval)
+		.bind(EvalIf);
+
+	// Output
 
 	bindings
 		.match_any(Match::token_kind(Token::Literal))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::token_kind(Token::Integer))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::token(Token::Word(Symbol::str("true"))))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(EvalBool(true));
 
 	bindings
 		.match_any(Match::token(Token::Word(Symbol::str("false"))))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(EvalBool(false));
 
 	bindings
 		.match_any(Match::kind_of(Value::Bool(true)))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::kind_of(Value::Group { scoped: false }))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
@@ -205,12 +227,12 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 			scoped: false,
 			indented: false,
 		}))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
 		.match_any(Match::kind_of(Value::BinaryOp(OpKey(OpKind::Core, Symbol::empty()))))
-		.with_precedence(output_prec)
+		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	Ok(())

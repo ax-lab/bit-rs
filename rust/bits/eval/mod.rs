@@ -48,7 +48,7 @@ pub trait Evaluator<'a>: Debug {
 		let (pos, end, src) = (binding.pos(), binding.end(), binding.src());
 		let _ = ctx;
 		println!(
-			"\n>>> Process {:?} -- {pos}:{end} @{src} / order = {} <<<",
+			"\n>>> Process {:?} -- {pos}:{end} @{src} / order = {:?} <<<",
 			self,
 			binding.order()
 		);
@@ -253,13 +253,13 @@ impl<'a> Evaluator<'a> for EvalLet {
 				let var = ctx.variables().declare(name, node);
 				ctx.bindings()
 					.match_at(src, range, Match::word(name))
-					.with_precedence(Value::SInt(i64::MAX))
+					.with_precedence(Precedence::VarBinding)
 					.bind(EvalVar(var));
 
 				let expr_span = Span::range(expr);
 				ctx.bindings()
 					.match_at(src, expr_span.pos()..expr_span.end(), Match::word(Symbol::str("this")))
-					.with_precedence(Value::SInt(i64::MAX))
+					.with_precedence(Precedence::VarBinding)
 					.bind(EvalVar(var));
 
 				Value::Let(var)
@@ -723,6 +723,6 @@ pub struct EvalFor;
 impl<'a> Evaluator<'a> for EvalFor {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = (ctx, binding);
-		todo!()
+		err!("not implemented")
 	}
 }
