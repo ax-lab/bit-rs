@@ -41,7 +41,7 @@ impl<'a> NodeContext<'a> {
 	pub fn new_node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
 		let data = self.ctx.store(NodeData {
 			ctx: self.ctx,
-			span,
+			span: span.into(),
 			value: value.into(),
 			nodes: Default::default(),
 			parent: Default::default(),
@@ -69,7 +69,7 @@ const FLAG_SILENT: u8 = 2;
 
 pub struct NodeData<'a> {
 	ctx: ContextRef<'a>,
-	span: Span<'a>,
+	span: Cell<Span<'a>>,
 	value: Cell<Value<'a>>,
 	nodes: Cell<&'a [Node<'a>]>,
 	parent: Cell<Option<Node<'a>>>,
@@ -115,7 +115,17 @@ impl<'a> Node<'a> {
 
 	#[inline]
 	pub fn pos(self) -> usize {
-		self.data.span.pos()
+		self.span().pos()
+	}
+
+	#[inline]
+	pub fn src(self) -> Source<'a> {
+		self.span().src()
+	}
+
+	pub fn set_span(self, span: Span<'a>) {
+		self.data.span.set(span);
+		self.context().nodes().reindex_node(self);
 	}
 
 	#[inline]
@@ -402,14 +412,14 @@ impl<'a> Node<'a> {
 impl<'a> HasSpan<'a> for Node<'a> {
 	#[inline]
 	fn span(&self) -> Span<'a> {
-		self.data.span
+		self.data.span.get()
 	}
 }
 
 impl<'a> HasSpan<'a> for &Node<'a> {
 	#[inline]
 	fn span(&self) -> Span<'a> {
-		self.data.span
+		self.data.span.get()
 	}
 }
 

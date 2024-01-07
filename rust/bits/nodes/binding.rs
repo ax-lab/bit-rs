@@ -269,7 +269,7 @@ impl<'a> Bindings<'a> {
 	}
 
 	pub fn add(&self, key: Value<'a>, node: Node<'a>) {
-		if key == Value::None {
+		if key == Value::None || node.span().is_empty() {
 			return;
 		}
 
@@ -418,7 +418,6 @@ impl<'a> BySource<'a> {
 struct BindTable<'a> {
 	ctx: ContextRef<'a>,
 	source: Source<'a>,
-	sorted: Cell<bool>,
 	nodes: RefCell<Vec<Node<'a>>>,
 	patterns: RefCell<HashMap<Match<'a>, &'a PatternBindings<'a>>>,
 	done_segments: RefCell<Vec<&'a BoundSegment<'a>>>,
@@ -429,7 +428,6 @@ impl<'a> BindTable<'a> {
 		Self {
 			ctx,
 			source,
-			sorted: true.into(),
 			nodes: Default::default(),
 			patterns: Default::default(),
 			done_segments: Default::default(),
@@ -438,9 +436,7 @@ impl<'a> BindTable<'a> {
 
 	pub fn add_node(&self, node: Node<'a>, heap: &mut SegmentHeap<'a>) {
 		let mut nodes = self.nodes.borrow_mut();
-		let sorted = self.sorted.get() && node.pos() >= nodes.last().map(|x| x.pos()).unwrap_or_default();
 		nodes.push(node);
-		self.sorted.set(sorted);
 
 		// requeue any processed segments since there is a new node
 		let mut done_segments = self.done_segments.borrow_mut();
@@ -459,11 +455,9 @@ impl<'a> BindTable<'a> {
 	}
 
 	pub fn sorted_nodes(&self) -> Ref<[Node<'a>]> {
-		if !self.sorted.get() {
-			let mut nodes = self.nodes.borrow_mut();
-			nodes.sort_by_key(|x| x.pos());
-			self.sorted.set(true);
-		}
+		let mut nodes = self.nodes.borrow_mut();
+		nodes.sort_by_key(|x| x.pos());
+		drop(nodes);
 
 		let out = self.nodes.borrow();
 		Ref::map(out, |x| x.as_slice())
@@ -560,7 +554,8 @@ impl<'a> BoundSegment<'a> {
 		let end_index = sta_index + nodes[sta_index..].partition_point(|node| node.pos() < end);
 		let nodes = nodes[sta_index..end_index].iter().copied();
 		let nodes = nodes.filter(|node: &Node<'a>| {
-			if !node.is_done() && self.parent.pattern.matches(*node) {
+			let same_source = tb.source == Source::default() || node.src() == tb.source;
+			if !node.is_done() && same_source && self.parent.pattern.matches(*node) {
 				node.flag_done();
 				true
 			} else {
