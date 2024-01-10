@@ -4,7 +4,7 @@ use super::*;
 
 #[derive(Default)]
 struct ContextData<'a> {
-	types: ContextCell<'a, TypeContext<'a>>,
+	types: ContextCell<'a, RuntimeTypeContext<'a>>,
 	sources: ContextCell<'a, SourceContext<'a>>,
 	nodes: ContextCell<'a, NodeContext<'a>>,
 	lexer: ContextCell<'a, LexerContext<'a>>,
@@ -33,7 +33,7 @@ impl<'a> ContextData<'a> {
 }
 
 impl<'a> ContextRef<'a> {
-	pub fn types(&self) -> &'a TypeContext<'a> {
+	pub fn types(&self) -> &'a RuntimeTypeContext<'a> {
 		self.data().types.get()
 	}
 

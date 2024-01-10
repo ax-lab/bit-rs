@@ -22,7 +22,7 @@ pub union Data<'a> {
 	pub usize: usize,
 
 	pub ptr: *const u8,
-	pub typ: Type<'a>,
+	pub typ: RuntimeType<'a>,
 	pub sym: Symbol,
 }
 
@@ -128,7 +128,7 @@ impl<'a> Data<'a> {
 	}
 
 	#[inline]
-	pub unsafe fn typ(&self) -> Type<'a> {
+	pub unsafe fn typ(&self) -> RuntimeType<'a> {
 		unsafe { self.typ }
 	}
 

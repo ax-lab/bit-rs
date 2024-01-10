@@ -98,9 +98,9 @@ pub struct OpTable<'a> {
 struct OpTableData<'a> {
 	key: OpKey,
 	ctx: ContextRef<'a>,
-	nullary: RwLock<HashMap<Type<'a>, Nullary<'a>>>,
-	unary: RwLock<HashMap<(Type<'a>, Type<'a>), Unary<'a>>>,
-	binary: RwLock<HashMap<(Type<'a>, (Type<'a>, Type<'a>)), Binary<'a>>>,
+	nullary: RwLock<HashMap<RuntimeType<'a>, Nullary<'a>>>,
+	unary: RwLock<HashMap<(RuntimeType<'a>, RuntimeType<'a>), Unary<'a>>>,
+	binary: RwLock<HashMap<(RuntimeType<'a>, (RuntimeType<'a>, RuntimeType<'a>)), Binary<'a>>>,
 }
 
 impl<'a> OpTable<'a> {
@@ -108,7 +108,7 @@ impl<'a> OpTable<'a> {
 		self.data.key
 	}
 
-	pub fn define_nullary(&self, out: Type<'a>) -> Nullary<'a> {
+	pub fn define_nullary(&self, out: RuntimeType<'a>) -> Nullary<'a> {
 		Self::define(&self.data.nullary, out, || {
 			let data = NullaryData {
 				key: self.data.key,
@@ -120,7 +120,7 @@ impl<'a> OpTable<'a> {
 		})
 	}
 
-	pub fn define_unary(&self, out: Type<'a>, arg: Type<'a>) -> Unary<'a> {
+	pub fn define_unary(&self, out: RuntimeType<'a>, arg: RuntimeType<'a>) -> Unary<'a> {
 		Self::define(&self.data.unary, (out, arg), || {
 			let data = UnaryData {
 				key: self.data.key,
@@ -133,7 +133,7 @@ impl<'a> OpTable<'a> {
 		})
 	}
 
-	pub fn define_binary(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Binary<'a> {
+	pub fn define_binary(&self, out: RuntimeType<'a>, args: (RuntimeType<'a>, RuntimeType<'a>)) -> Binary<'a> {
 		Self::define(&self.data.binary, (out, args), || {
 			let data = BinaryData {
 				key: self.data.key,
@@ -146,7 +146,7 @@ impl<'a> OpTable<'a> {
 		})
 	}
 
-	pub fn get_nullary(&self, op_out: Type<'a>) -> Vec<Nullary<'a>> {
+	pub fn get_nullary(&self, op_out: RuntimeType<'a>) -> Vec<Nullary<'a>> {
 		let table = self.data.nullary.read().unwrap();
 		let mut list = Vec::new();
 		for (out, op) in table.iter() {
@@ -157,7 +157,7 @@ impl<'a> OpTable<'a> {
 		list
 	}
 
-	pub fn get_unary(&self, op_out: Type<'a>, op_arg: Type<'a>) -> Vec<Unary<'a>> {
+	pub fn get_unary(&self, op_out: RuntimeType<'a>, op_arg: RuntimeType<'a>) -> Vec<Unary<'a>> {
 		let table = self.data.unary.read().unwrap();
 		let mut list = Vec::new();
 		for ((out, arg), op) in table.iter() {
@@ -168,7 +168,7 @@ impl<'a> OpTable<'a> {
 		list
 	}
 
-	pub fn get_binary_output(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Type<'a> {
+	pub fn get_binary_output(&self, out: RuntimeType<'a>, args: (RuntimeType<'a>, RuntimeType<'a>)) -> RuntimeType<'a> {
 		let table = self.data.binary.read().unwrap();
 		let types = self.data.ctx.types();
 		let mut op_out = types.none();
@@ -180,7 +180,7 @@ impl<'a> OpTable<'a> {
 		op_out
 	}
 
-	pub fn get_binary(&self, out: Type<'a>, args: (Type<'a>, Type<'a>)) -> Result<Binary<'a>> {
+	pub fn get_binary(&self, out: RuntimeType<'a>, args: (RuntimeType<'a>, RuntimeType<'a>)) -> Result<Binary<'a>> {
 		let table = self.data.binary.read().unwrap();
 		let mut list = Vec::new();
 		for op in table.values() {
@@ -228,7 +228,7 @@ pub struct Nullary<'a> {
 
 struct NullaryData<'a> {
 	key: OpKey,
-	out: Type<'a>,
+	out: RuntimeType<'a>,
 	eval: AtomicPtr<NullaryEval<'a>>,
 }
 
@@ -258,8 +258,8 @@ pub struct Unary<'a> {
 
 struct UnaryData<'a> {
 	key: OpKey,
-	out: Type<'a>,
-	arg: Type<'a>,
+	out: RuntimeType<'a>,
+	arg: RuntimeType<'a>,
 	eval: AtomicPtr<()>,
 }
 
@@ -290,8 +290,8 @@ pub struct Binary<'a> {
 
 struct BinaryData<'a> {
 	key: OpKey,
-	out: Type<'a>,
-	args: (Type<'a>, Type<'a>),
+	out: RuntimeType<'a>,
+	args: (RuntimeType<'a>, RuntimeType<'a>),
 	eval: AtomicPtr<()>,
 }
 
@@ -301,19 +301,19 @@ impl<'a> Binary<'a> {
 		self.data.eval.store(func, SyncOrder::Relaxed);
 	}
 
-	pub fn matches(&self, out: Type<'a>, (lhs, rhs): (Type<'a>, Type<'a>)) -> bool {
+	pub fn matches(&self, out: RuntimeType<'a>, (lhs, rhs): (RuntimeType<'a>, RuntimeType<'a>)) -> bool {
 		out.contains(self.out()) && self.lhs().contains(lhs) && self.rhs().contains(rhs)
 	}
 
-	pub fn out(&self) -> Type<'a> {
+	pub fn out(&self) -> RuntimeType<'a> {
 		self.data.out
 	}
 
-	pub fn lhs(&self) -> Type<'a> {
+	pub fn lhs(&self) -> RuntimeType<'a> {
 		self.data.args.0
 	}
 
-	pub fn rhs(&self) -> Type<'a> {
+	pub fn rhs(&self) -> RuntimeType<'a> {
 		self.data.args.1
 	}
 

@@ -948,7 +948,7 @@ impl<'a> Node<'a> {
 	}
 }
 
-impl<'a> Type<'a> {
+impl<'a> RuntimeType<'a> {
 	pub fn get_sequence_next_prev_steps(self) -> Option<(Value<'a>, Value<'a>)> {
 		None
 	}

@@ -171,7 +171,7 @@ impl<'a, 'b> NodeChain<'a, 'b> {
 }
 
 impl<'a> Node<'a> {
-	pub fn eval_type(self, output: Type<'a>) -> Result<Type<'a>> {
+	pub fn eval_type(self, output: RuntimeType<'a>) -> Result<RuntimeType<'a>> {
 		let head = NodeChain {
 			value: self,
 			prev: None,
@@ -179,7 +179,7 @@ impl<'a> Node<'a> {
 		self.do_eval_type(output, &head)
 	}
 
-	fn do_eval_type<'b>(self, output: Type<'a>, chain: &NodeChain<'a, 'b>) -> Result<Type<'a>> {
+	fn do_eval_type<'b>(self, output: RuntimeType<'a>, chain: &NodeChain<'a, 'b>) -> Result<RuntimeType<'a>> {
 		if chain.contains(self) {
 			let span = self.span();
 			err!("at {span}: node type depends on itself: {self}")?;

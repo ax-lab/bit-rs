@@ -6,72 +6,72 @@ pub mod symbol;
 pub use repr::*;
 pub use symbol::*;
 
-pub struct TypeContext<'a> {
+pub struct RuntimeTypeContext<'a> {
 	ctx: ContextRef<'a>,
 
-	none: TypeData<'a>,
-	unit: TypeData<'a>,
-	str: TypeData<'a>,
-	bool: TypeData<'a>,
-	sint: TypeData<'a>,
-	uint: TypeData<'a>,
-	never: TypeData<'a>,
-	any: TypeData<'a>,
-	unknown: TypeData<'a>,
+	none: RuntimeTypeData<'a>,
+	unit: RuntimeTypeData<'a>,
+	str: RuntimeTypeData<'a>,
+	bool: RuntimeTypeData<'a>,
+	sint: RuntimeTypeData<'a>,
+	uint: RuntimeTypeData<'a>,
+	never: RuntimeTypeData<'a>,
+	any: RuntimeTypeData<'a>,
+	unknown: RuntimeTypeData<'a>,
 
-	invalid: TypeMap<'a, Type<'a>>,
+	invalid: TypeMap<'a, RuntimeType<'a>>,
 	builtin: TypeMap<'a, Primitive>,
 
-	sum_types: TypeMap<'a, (Type<'a>, Type<'a>)>,
+	sum_types: TypeMap<'a, (RuntimeType<'a>, RuntimeType<'a>)>,
 }
 
-unsafe impl<'a> Send for TypeData<'a> {}
-unsafe impl<'a> Sync for TypeData<'a> {}
-impl<'a> UnwindSafe for TypeData<'a> {}
+unsafe impl<'a> Send for RuntimeTypeData<'a> {}
+unsafe impl<'a> Sync for RuntimeTypeData<'a> {}
+impl<'a> UnwindSafe for RuntimeTypeData<'a> {}
 
-impl<'a> IsContext<'a> for TypeContext<'a> {
+impl<'a> IsContext<'a> for RuntimeTypeContext<'a> {
 	fn new(ctx: ContextRef<'a>) -> Self {
-		let none = TypeData {
+		let none = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::None,
 		};
 
-		let unit = TypeData {
+		let unit = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Unit,
 		};
 
-		let str = TypeData {
+		let str = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Builtin(Primitive::String),
 		};
 
-		let bool = TypeData {
+		let bool = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Builtin(Primitive::Bool),
 		};
 
-		let sint = TypeData {
+		let sint = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Builtin(Primitive::SInt(64)),
 		};
 
-		let uint = TypeData {
+		let uint = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Builtin(Primitive::UInt(64)),
 		};
 
-		let never = TypeData {
+		let never = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Never,
 		};
 
-		let any = TypeData {
+		let any = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Any,
 		};
 
-		let unknown = TypeData {
+		let unknown = RuntimeTypeData {
 			ctx,
 			kind: TypeKind::Unknown,
 		};
@@ -97,60 +97,60 @@ impl<'a> IsContext<'a> for TypeContext<'a> {
 	fn init(&mut self) {}
 }
 
-impl<'a> TypeContext<'a> {
+impl<'a> RuntimeTypeContext<'a> {
 	/// Null-value for a type, representing the lack of a type (e.g. void type).
-	pub fn none(&'a self) -> Type<'a> {
+	pub fn none(&'a self) -> RuntimeType<'a> {
 		let data = &self.none;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Concrete type containing only a single zero-sized value.
-	pub fn unit(&'a self) -> Type<'a> {
+	pub fn unit(&'a self) -> RuntimeType<'a> {
 		let data = &self.unit;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Concrete type containing no possible values. The never type indicates
 	/// is used to indicate a logically impossible value.
-	pub fn never(&'a self) -> Type<'a> {
+	pub fn never(&'a self) -> RuntimeType<'a> {
 		let data = &self.never;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Concrete type able to hold any possible value.
-	pub fn any(&'a self) -> Type<'a> {
+	pub fn any(&'a self) -> RuntimeType<'a> {
 		let data = &self.any;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Abstract unknown type.
-	pub fn unknown(&'a self) -> Type<'a> {
+	pub fn unknown(&'a self) -> RuntimeType<'a> {
 		let data = &self.unknown;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Default string type.
-	pub fn str(&'a self) -> Type<'a> {
+	pub fn str(&'a self) -> RuntimeType<'a> {
 		let data = &self.str;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Builtin boolean type.
-	pub fn bool(&'a self) -> Type<'a> {
+	pub fn bool(&'a self) -> RuntimeType<'a> {
 		let data = &self.bool;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Default signed integer.
-	pub fn sint(&'a self) -> Type<'a> {
+	pub fn sint(&'a self) -> RuntimeType<'a> {
 		let data = &self.sint;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Default unsigned integer.
-	pub fn uint(&'a self) -> Type<'a> {
+	pub fn uint(&'a self) -> RuntimeType<'a> {
 		let data = &self.uint;
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Empty invalid type. An invalid type indicates a type that is not valid
@@ -160,11 +160,11 @@ impl<'a> TypeContext<'a> {
 	/// be derived from an invalid type or by invalidating a valid type.
 	///
 	/// Operations with invalid types should always result in an invalid type.
-	pub fn invalid(&'a self) -> Type {
+	pub fn invalid(&'a self) -> RuntimeType {
 		self.none().to_invalid()
 	}
 
-	fn store(&'a self, data: TypeData<'a>) -> &'a TypeData<'a> {
+	fn store(&'a self, data: RuntimeTypeData<'a>) -> &'a RuntimeTypeData<'a> {
 		let arena = self.ctx.arena();
 		match data.kind {
 			TypeKind::None => &self.none,
@@ -195,11 +195,11 @@ impl<'a> TypeContext<'a> {
 /// Named types are also supported through abstract symbols. The textual
 /// representation of a symbol (if any) is left to the environment.
 #[derive(Copy, Clone)]
-pub struct Type<'a> {
-	data: &'a TypeData<'a>,
+pub struct RuntimeType<'a> {
+	data: &'a RuntimeTypeData<'a>,
 }
 
-impl<'a> Type<'a> {
+impl<'a> RuntimeType<'a> {
 	#[inline]
 	pub fn context(&self) -> ContextRef<'a> {
 		self.data.ctx
@@ -218,13 +218,13 @@ impl<'a> Type<'a> {
 	/// For an invalid type, return the type itself.
 	///
 	/// This will always return the same type when called on the same base type.
-	pub fn to_invalid(self) -> Type<'a> {
+	pub fn to_invalid(self) -> RuntimeType<'a> {
 		if let TypeKind::Invalid(..) = self.data.kind {
 			self
 		} else {
 			let types = self.types();
 			types.invalid.get(&self, |typ| {
-				let data = TypeData {
+				let data = RuntimeTypeData {
 					ctx: self.data.ctx,
 					kind: TypeKind::Invalid(typ),
 				};
@@ -264,7 +264,7 @@ impl<'a> Type<'a> {
 
 	/// Return a valid type either by unwrapping an invalid type or returning
 	/// self if it is already valid.
-	pub fn get_valid(self) -> Type<'a> {
+	pub fn get_valid(self) -> RuntimeType<'a> {
 		if let TypeKind::Invalid(typ) = self.data.kind {
 			typ
 		} else {
@@ -294,14 +294,14 @@ impl<'a> Type<'a> {
 	/// unique will return the same type.
 	///
 	/// The returned unique type is only equal to itself.
-	pub fn to_unique(self) -> Type<'a> {
+	pub fn to_unique(self) -> RuntimeType<'a> {
 		let data = self.data.clone();
 		let data = self.types().store(data);
-		Type { data }
+		RuntimeType { data }
 	}
 
 	/// Return the sum of this type with the given type.
-	pub fn sum(self, other: Type<'a>) -> Type<'a> {
+	pub fn sum(self, other: RuntimeType<'a>) -> RuntimeType<'a> {
 		let types = self.types();
 		let (a, b) = if self < other { (self, other) } else { (other, self) };
 		if a.is_invalid() || b.is_invalid() {
@@ -309,38 +309,40 @@ impl<'a> Type<'a> {
 			let vb = b.get_valid();
 			va.sum(vb).to_invalid()
 		} else {
-			types.sum_types.get(&(a, b), |(a, b): (Type<'a>, Type<'a>)| {
-				if a.is_unknown() || a.is_none() {
-					b.data
-				} else if b.is_unknown() || b.is_none() {
-					a.data
-				} else if a.contains(b) {
-					a.data
-				} else if b.contains(a) {
-					b.data
-				} else {
-					types.store(TypeData {
-						ctx: types.ctx,
-						kind: TypeKind::Sum(a, b),
-					})
-				}
-			})
+			types
+				.sum_types
+				.get(&(a, b), |(a, b): (RuntimeType<'a>, RuntimeType<'a>)| {
+					if a.is_unknown() || a.is_none() {
+						b.data
+					} else if b.is_unknown() || b.is_none() {
+						a.data
+					} else if a.contains(b) {
+						a.data
+					} else if b.contains(a) {
+						b.data
+					} else {
+						types.store(RuntimeTypeData {
+							ctx: types.ctx,
+							kind: TypeKind::Sum(a, b),
+						})
+					}
+				})
 		}
 	}
 
 	/// Return the intersection of this type with the given type.
-	pub fn intersect(&self, _other: Type<'a>) -> Type<'a> {
+	pub fn intersect(&self, _other: RuntimeType<'a>) -> RuntimeType<'a> {
 		todo!()
 	}
 
 	/// Return the type resulting from subtracting the given type from the
 	/// current type.
-	pub fn subtract(&self, _other: Type<'a>) -> Type<'a> {
+	pub fn subtract(&self, _other: RuntimeType<'a>) -> RuntimeType<'a> {
 		todo!()
 	}
 
 	/// Is the current type a superset of the given type?
-	pub fn contains(self, other: Type<'a>) -> bool {
+	pub fn contains(self, other: RuntimeType<'a>) -> bool {
 		if self == other {
 			return true;
 		}
@@ -366,67 +368,67 @@ impl<'a> Type<'a> {
 	}
 
 	#[inline]
-	fn as_ptr(self) -> *const TypeData<'a> {
+	fn as_ptr(self) -> *const RuntimeTypeData<'a> {
 		self.data.as_ptr()
 	}
 
 	#[inline]
-	pub fn types(&self) -> &'a TypeContext<'a> {
+	pub fn types(&self) -> &'a RuntimeTypeContext<'a> {
 		self.data.ctx.types()
 	}
 }
 
-impl<'a> Eq for Type<'a> {}
+impl<'a> Eq for RuntimeType<'a> {}
 
-impl<'a> PartialEq for Type<'a> {
+impl<'a> PartialEq for RuntimeType<'a> {
 	fn eq(&self, other: &Self) -> bool {
 		self.as_ptr() == other.as_ptr()
 	}
 }
 
-impl<'a> Hash for Type<'a> {
+impl<'a> Hash for RuntimeType<'a> {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
 		self.as_ptr().hash(state)
 	}
 }
 
-impl<'a> Debug for Type<'a> {
+impl<'a> Debug for RuntimeType<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{:?}", self.data)
 	}
 }
 
-impl<'a> Display for Type<'a> {
+impl<'a> Display for RuntimeType<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{}", self.data)
 	}
 }
 
-impl<'a> Ord for Type<'a> {
+impl<'a> Ord for RuntimeType<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.data.cmp(&other.data)
 	}
 }
 
-impl<'a> PartialOrd for Type<'a> {
+impl<'a> PartialOrd for RuntimeType<'a> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
 }
 
 #[derive(Clone, Eq, PartialEq)]
-struct TypeData<'a> {
+struct RuntimeTypeData<'a> {
 	ctx: ContextRef<'a>,
 	kind: TypeKind<'a>,
 }
 
-impl<'a> Ord for TypeData<'a> {
+impl<'a> Ord for RuntimeTypeData<'a> {
 	fn cmp(&self, other: &Self) -> Ordering {
 		self.kind.cmp(&other.kind)
 	}
 }
 
-impl<'a> PartialOrd for TypeData<'a> {
+impl<'a> PartialOrd for RuntimeTypeData<'a> {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
@@ -439,12 +441,12 @@ enum TypeKind<'a> {
 	Never,
 	Any,
 	Unknown,
-	Invalid(Type<'a>),
+	Invalid(RuntimeType<'a>),
 	Builtin(Primitive),
-	Sum(Type<'a>, Type<'a>),
+	Sum(RuntimeType<'a>, RuntimeType<'a>),
 }
 
-impl<'a> TypeData<'a> {
+impl<'a> RuntimeTypeData<'a> {
 	fn as_ptr(&self) -> *const Self {
 		self
 	}
@@ -454,7 +456,7 @@ impl<'a> TypeData<'a> {
 	}
 }
 
-impl<'a> Debug for TypeData<'a> {
+impl<'a> Debug for RuntimeTypeData<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		let mut ptr = false;
 		let types = self.ctx.types();
@@ -501,14 +503,14 @@ impl<'a> Debug for TypeData<'a> {
 	}
 }
 
-impl<'a> Display for TypeData<'a> {
+impl<'a> Display for RuntimeTypeData<'a> {
 	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
 		write!(f, "{self:?}")
 	}
 }
 
 struct TypeMap<'a, T: Eq + Hash + Clone> {
-	map: RwLock<HashMap<T, &'a TypeData<'a>>>,
+	map: RwLock<HashMap<T, &'a RuntimeTypeData<'a>>>,
 }
 
 impl<'a, T: Eq + Hash + Clone> TypeMap<'a, T> {
@@ -518,14 +520,14 @@ impl<'a, T: Eq + Hash + Clone> TypeMap<'a, T> {
 		}
 	}
 
-	pub fn get<F: Fn(T) -> &'a TypeData<'a>>(&self, key: &T, init: F) -> Type<'a> {
+	pub fn get<F: Fn(T) -> &'a RuntimeTypeData<'a>>(&self, key: &T, init: F) -> RuntimeType<'a> {
 		if let Some(data) = self.map.read().unwrap().get(key).copied() {
-			return Type { data };
+			return RuntimeType { data };
 		}
 
 		let mut map = self.map.write().unwrap();
 		let entry = map.entry(key.clone()).or_insert_with(|| init(key.clone()));
-		Type { data: *entry }
+		RuntimeType { data: *entry }
 	}
 }
 

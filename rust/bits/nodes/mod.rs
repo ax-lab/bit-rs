@@ -75,7 +75,7 @@ pub struct NodeData<'a> {
 	parent: Cell<Option<Node<'a>>>,
 	index: Cell<usize>,
 	status: Cell<u8>,
-	output: Cell<Type<'a>>,
+	output: Cell<RuntimeType<'a>>,
 }
 
 impl<'a> Node<'a> {
@@ -105,11 +105,11 @@ impl<'a> Node<'a> {
 		self.context().nodes().reindex_node(self)
 	}
 
-	pub fn output(self) -> Type<'a> {
+	pub fn output(self) -> RuntimeType<'a> {
 		self.data.output.get()
 	}
 
-	pub fn set_output(self, typ: Type<'a>) {
+	pub fn set_output(self, typ: RuntimeType<'a>) {
 		self.data.output.set(typ);
 	}
 

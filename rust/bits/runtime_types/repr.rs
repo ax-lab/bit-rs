@@ -39,7 +39,7 @@ pub enum Primitive {
 	PtrDiff,
 }
 
-impl<'a> Type<'a> {
+impl<'a> RuntimeType<'a> {
 	pub fn is_builtin(&self, typ: Primitive) -> bool {
 		if let TypeKind::Builtin(repr) = self.data.kind {
 			repr == typ
@@ -49,8 +49,8 @@ impl<'a> Type<'a> {
 	}
 }
 
-impl<'a> TypeContext<'a> {
-	pub fn builtin(&'a self, typ: Primitive) -> Type<'a> {
+impl<'a> RuntimeTypeContext<'a> {
+	pub fn builtin(&'a self, typ: Primitive) -> RuntimeType<'a> {
 		match typ {
 			Primitive::Bool => self.bool(),
 			Primitive::String => self.str(),
@@ -60,8 +60,8 @@ impl<'a> TypeContext<'a> {
 		}
 	}
 
-	fn from_primitive(&self, typ: Primitive) -> TypeData<'a> {
-		TypeData {
+	fn from_primitive(&self, typ: Primitive) -> RuntimeTypeData<'a> {
+		RuntimeTypeData {
 			ctx: self.ctx,
 			kind: TypeKind::Builtin(typ),
 		}
