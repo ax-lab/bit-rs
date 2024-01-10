@@ -138,8 +138,19 @@ impl<'a> Node<'a> {
 		self.nodes().len()
 	}
 
+	#[inline]
 	pub fn node(self, index: usize) -> Option<Node<'a>> {
 		self.nodes().get(index).copied()
+	}
+
+	#[inline]
+	pub fn first(self) -> Option<Node<'a>> {
+		self.node(0)
+	}
+
+	#[inline]
+	pub fn last(self) -> Option<Node<'a>> {
+		self.nodes().last().copied()
 	}
 
 	pub fn set_nodes(self, nodes: &'a [Node<'a>]) {
@@ -189,11 +200,20 @@ impl<'a> Node<'a> {
 	}
 
 	pub fn actual_value(self) -> Node<'a> {
-		if self.len() == 1 && self.value().is_block() {
-			self.node(0).unwrap().actual_value()
-		} else {
-			self
+		match self.value() {
+			Value::Group { .. } => {
+				if self.len() == 1 {
+					return self.node(0).unwrap().actual_value();
+				}
+			}
+			Value::Module(_) | Value::Sequence { .. } => {
+				if let Some(node) = self.last() {
+					return node.actual_value();
+				}
+			}
+			_ => {}
 		}
+		self
 	}
 
 	pub fn replace(self, other: Node<'a>) -> bool {
