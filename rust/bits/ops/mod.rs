@@ -217,9 +217,9 @@ impl<'a> OpTable<'a> {
 	}
 }
 
-type NullaryEval<'a> = fn(&mut Runtime<'a>) -> Result<Value<'a>>;
-type UnaryEval<'a> = fn(&mut Runtime<'a>, Value<'a>) -> Result<Value<'a>>;
-type BinaryEval<'a> = fn(&mut Runtime<'a>, Value<'a>, Value<'a>) -> Result<Value<'a>>;
+type NullaryEval<'a> = fn(&mut Runtime<'a>) -> Result<NodeValue<'a>>;
+type UnaryEval<'a> = fn(&mut Runtime<'a>, NodeValue<'a>) -> Result<NodeValue<'a>>;
+type BinaryEval<'a> = fn(&mut Runtime<'a>, NodeValue<'a>, NodeValue<'a>) -> Result<NodeValue<'a>>;
 
 #[derive(Copy, Clone)]
 pub struct Nullary<'a> {
@@ -239,7 +239,7 @@ impl<'a> Nullary<'a> {
 			.store(func as *const NullaryEval as *mut _, SyncOrder::Relaxed);
 	}
 
-	pub fn eval(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
+	pub fn eval(&self, rt: &mut Runtime<'a>) -> Result<NodeValue<'a>> {
 		let eval = self.data.eval.load(SyncOrder::Relaxed);
 		if let Some(eval) = unsafe { eval.as_ref() } {
 			(eval)(rt)
@@ -269,7 +269,7 @@ impl<'a> Unary<'a> {
 		self.data.eval.store(func, SyncOrder::Relaxed);
 	}
 
-	pub fn eval(&self, rt: &mut Runtime<'a>, value: Value<'a>) -> Result<Value<'a>> {
+	pub fn eval(&self, rt: &mut Runtime<'a>, value: NodeValue<'a>) -> Result<NodeValue<'a>> {
 		let eval = self.data.eval.load(SyncOrder::Relaxed);
 		if !eval.is_null() {
 			let eval: UnaryEval<'a> = unsafe { std::mem::transmute(eval) };
@@ -317,7 +317,7 @@ impl<'a> Binary<'a> {
 		self.data.args.1
 	}
 
-	pub fn eval(&self, rt: &mut Runtime<'a>, lhs: Value<'a>, rhs: Value<'a>) -> Result<Value<'a>> {
+	pub fn eval(&self, rt: &mut Runtime<'a>, lhs: NodeValue<'a>, rhs: NodeValue<'a>) -> Result<NodeValue<'a>> {
 		let eval = self.data.eval.load(SyncOrder::Relaxed);
 		if !eval.is_null() {
 			let eval: BinaryEval<'a> = unsafe { std::mem::transmute(eval) };
@@ -374,9 +374,13 @@ mod tests {
 		let to_string = OpKey(OpKind::Core, Symbol::str("to_string"));
 		let to_string = ctx.ops().get(to_string);
 		to_string.define_unary((str, str)).set_eval(|ctx, val| {
-			let val = if let Value::Str(val) = val { val } else { unreachable!() };
+			let val = if let NodeValue::Str(val) = val {
+				val
+			} else {
+				unreachable!()
+			};
 			let val = format!("{val}!!!");
-			Ok(Value::Str(ctx.arena().str(val)))
+			Ok(NodeValue::Str(ctx.arena().str(val)))
 		});
 
 		assert_eq!("abc123!!!", format!("{node}"));

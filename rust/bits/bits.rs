@@ -86,16 +86,32 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 
 	let mul = ops.get(op_mul());
 	mul.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
-		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
-		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
-		Ok(Value::SInt(lhs * rhs))
+		let lhs = if let NodeValue::SInt(v) = lhs {
+			v
+		} else {
+			unreachable!()
+		};
+		let rhs = if let NodeValue::SInt(v) = rhs {
+			v
+		} else {
+			unreachable!()
+		};
+		Ok(NodeValue::SInt(lhs * rhs))
 	});
 
 	let add = ops.get(op_add());
 	add.define_binary(t_sint, (t_sint, t_sint)).set_eval(|_rt, lhs, rhs| {
-		let lhs = if let Value::SInt(v) = lhs { v } else { unreachable!() };
-		let rhs = if let Value::SInt(v) = rhs { v } else { unreachable!() };
-		Ok(Value::SInt(lhs + rhs))
+		let lhs = if let NodeValue::SInt(v) = lhs {
+			v
+		} else {
+			unreachable!()
+		};
+		let rhs = if let NodeValue::SInt(v) = rhs {
+			v
+		} else {
+			unreachable!()
+		};
+		Ok(NodeValue::SInt(lhs + rhs))
 	});
 
 	let bindings = ctx.bindings();
@@ -106,7 +122,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(TokenizeSource);
 
 	bindings
-		.match_any(Match::exact(Value::Token(Token::Break)))
+		.match_any(Match::exact(NodeValue::Token(Token::Break)))
 		.with_precedence(Precedence::LineSplit)
 		.bind(EvalLineBreak);
 
@@ -146,7 +162,7 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalLetExpr);
 
 	bindings
-		.match_any(Match::kind_of(Value::LetDecl(Symbol::empty())))
+		.match_any(Match::kind_of(NodeValue::LetDecl(Symbol::empty())))
 		.with_precedence(Precedence::LetDecl)
 		.bind(EvalLetDecl);
 
@@ -187,12 +203,12 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 	// Block eval
 
 	bindings
-		.match_any(Match::kind_of(Value::For))
+		.match_any(Match::kind_of(NodeValue::For))
 		.with_precedence(Precedence::BlockEval)
 		.bind(EvalFor);
 
 	bindings
-		.match_any(Match::kind_of(Value::If))
+		.match_any(Match::kind_of(NodeValue::If))
 		.with_precedence(Precedence::BlockEval)
 		.bind(EvalIf);
 
@@ -219,17 +235,17 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(EvalBool(false));
 
 	bindings
-		.match_any(Match::kind_of(Value::Bool(true)))
+		.match_any(Match::kind_of(NodeValue::Bool(true)))
 		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
-		.match_any(Match::kind_of(Value::Group { scoped: false }))
+		.match_any(Match::kind_of(NodeValue::Group { scoped: false }))
 		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	bindings
-		.match_any(Match::kind_of(Value::Sequence {
+		.match_any(Match::kind_of(NodeValue::Sequence {
 			scoped: false,
 			indented: false,
 		}))
@@ -237,14 +253,14 @@ pub fn init_context<'a>(ctx: ContextRef<'a>) -> Result<()> {
 		.bind(Output);
 
 	bindings
-		.match_any(Match::kind_of(Value::BinaryOp(OpKey::default())))
+		.match_any(Match::kind_of(NodeValue::BinaryOp(OpKey::default())))
 		.with_precedence(Precedence::Output)
 		.bind(Output);
 
 	Ok(())
 }
 
-pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<Value<'a>> {
+pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<NodeValue<'a>> {
 	let bindings = ctx.bindings();
 	while let Some(next) = bindings.get_next() {
 		let eval = next.eval();
@@ -317,7 +333,7 @@ pub fn execute<'a, 'b>(ctx: ContextRef<'a>, out: Writer<'b>) -> Result<Value<'a>
 	// additional lifetime parameter for the runtime writer, but we only
 	// care the that the writer is valid during this function so f- that.
 	let mut rt = Runtime::new(ctx, unsafe { std::mem::transmute(out) });
-	let mut output = Value::None;
+	let mut output = NodeValue::None;
 	for it in program {
 		output = it.execute(&mut rt)?;
 	}

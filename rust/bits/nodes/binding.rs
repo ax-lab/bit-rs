@@ -4,26 +4,26 @@ use super::*;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum Match<'a> {
-	Exact(Value<'a>),
-	KindOf(Discriminant<Value<'a>>),
+	Exact(NodeValue<'a>),
+	KindOf(Discriminant<NodeValue<'a>>),
 	Token(Discriminant<Token>),
 }
 
 impl<'a> Match<'a> {
-	pub fn exact(value: Value<'a>) -> Self {
+	pub fn exact(value: NodeValue<'a>) -> Self {
 		Self::Exact(value)
 	}
 
 	pub fn symbol<T: Into<Symbol>>(symbol: T) -> Self {
-		Self::Exact(Value::Token(Token::Symbol(symbol.into())))
+		Self::Exact(NodeValue::Token(Token::Symbol(symbol.into())))
 	}
 
 	pub fn word<T: Into<Symbol>>(word: T) -> Self {
-		Self::Exact(Value::Token(Token::Word(word.into())))
+		Self::Exact(NodeValue::Token(Token::Word(word.into())))
 	}
 
 	pub fn indent() -> Self {
-		Self::kind_of(Value::Indent(true))
+		Self::kind_of(NodeValue::Indent(true))
 	}
 
 	pub fn token_kind(token: Token) -> Self {
@@ -31,22 +31,22 @@ impl<'a> Match<'a> {
 	}
 
 	pub fn token(token: Token) -> Self {
-		Self::Exact(Value::Token(token))
+		Self::Exact(NodeValue::Token(token))
 	}
 
 	pub fn unit() -> Self {
-		Self::kind_of(Value::Unit)
+		Self::kind_of(NodeValue::Unit)
 	}
 
 	pub fn str() -> Self {
-		Self::kind_of(Value::Str(""))
+		Self::kind_of(NodeValue::Str(""))
 	}
 
 	pub fn source() -> Self {
-		Self::kind_of(Value::Source(Source::default()))
+		Self::kind_of(NodeValue::Source(Source::default()))
 	}
 
-	pub fn kind_of(value: Value<'a>) -> Self {
+	pub fn kind_of(value: NodeValue<'a>) -> Self {
 		Self::KindOf(discriminant(&value))
 	}
 
@@ -56,7 +56,7 @@ impl<'a> Match<'a> {
 			Match::Exact(v) => key == v,
 			Match::KindOf(v) => discriminant(&key) == v,
 			Match::Token(v) => {
-				if let Value::Token(token) = key {
+				if let NodeValue::Token(token) = key {
 					v == discriminant(&token)
 				} else {
 					false
@@ -78,52 +78,52 @@ impl<'a> Match<'a> {
 enum Key<'a> {
 	#[default]
 	None,
-	Exact(Value<'a>),
-	KindOf(Discriminant<Value<'a>>),
+	Exact(NodeValue<'a>),
+	KindOf(Discriminant<NodeValue<'a>>),
 	Token(Discriminant<Token>),
 }
 
 const MAX_KEYS: usize = 3;
 
 impl<'a> Key<'a> {
-	pub fn for_value(v: Value<'a>) -> [Key<'a>; MAX_KEYS] {
+	pub fn for_value(v: NodeValue<'a>) -> [Key<'a>; MAX_KEYS] {
 		match v {
-			Value::None => Default::default(),
-			Value::Unit => Self::as_kind(v),
-			Value::Bool(_) => Self::as_kind(v),
-			Value::SInt(_) => Self::as_kind(v),
-			Value::UInt(_) => Self::as_kind(v),
-			Value::Source(_) => Self::as_kind(v),
-			Value::Module(_) => Self::as_kind(v),
-			Value::Group { .. } => Self::as_kind(v),
-			Value::Sequence { .. } => Self::as_kind(v),
-			Value::Print => Self::as_kind(v),
-			Value::LetDecl(_) => Self::as_kind(v),
-			Value::Let(_) => Self::as_kind(v),
-			Value::Var(_) => Self::as_kind(v),
-			Value::Indent(_) => Self::as_kind(v),
-			Value::If { .. } => Self::as_kind(v),
-			Value::ElseIf { .. } => Self::as_kind(v),
-			Value::Else { .. } => Self::as_kind(v),
-			Value::For { .. } => Self::as_kind(v),
-			Value::While { .. } => Self::as_kind(v),
+			NodeValue::None => Default::default(),
+			NodeValue::Unit => Self::as_kind(v),
+			NodeValue::Bool(_) => Self::as_kind(v),
+			NodeValue::SInt(_) => Self::as_kind(v),
+			NodeValue::UInt(_) => Self::as_kind(v),
+			NodeValue::Source(_) => Self::as_kind(v),
+			NodeValue::Module(_) => Self::as_kind(v),
+			NodeValue::Group { .. } => Self::as_kind(v),
+			NodeValue::Sequence { .. } => Self::as_kind(v),
+			NodeValue::Print => Self::as_kind(v),
+			NodeValue::LetDecl(_) => Self::as_kind(v),
+			NodeValue::Let(_) => Self::as_kind(v),
+			NodeValue::Var(_) => Self::as_kind(v),
+			NodeValue::Indent(_) => Self::as_kind(v),
+			NodeValue::If { .. } => Self::as_kind(v),
+			NodeValue::ElseIf { .. } => Self::as_kind(v),
+			NodeValue::Else { .. } => Self::as_kind(v),
+			NodeValue::For { .. } => Self::as_kind(v),
+			NodeValue::While { .. } => Self::as_kind(v),
 
-			Value::Str(_) => Self::as_value(v),
-			Value::BinaryOp(_) => Self::as_value(v),
+			NodeValue::Str(_) => Self::as_value(v),
+			NodeValue::BinaryOp(_) => Self::as_value(v),
 
-			Value::Token(token) => Self::three(Self::Exact(v), Self::Token(discriminant(&token)), Self::kind_of(v)),
+			NodeValue::Token(token) => Self::three(Self::Exact(v), Self::Token(discriminant(&token)), Self::kind_of(v)),
 		}
 	}
 
-	fn as_kind<const N: usize>(v: Value<'a>) -> [Self; N] {
+	fn as_kind<const N: usize>(v: NodeValue<'a>) -> [Self; N] {
 		Self::one(Self::kind_of(v))
 	}
 
-	fn as_value<const N: usize>(v: Value<'a>) -> [Self; N] {
+	fn as_value<const N: usize>(v: NodeValue<'a>) -> [Self; N] {
 		Self::two(Self::Exact(v), Self::kind_of(v))
 	}
 
-	fn kind_of(v: Value<'a>) -> Self {
+	fn kind_of(v: NodeValue<'a>) -> Self {
 		Self::KindOf(discriminant(&v))
 	}
 
@@ -268,8 +268,8 @@ impl<'a> Bindings<'a> {
 		root_nodes
 	}
 
-	pub fn add(&self, key: Value<'a>, node: Node<'a>) {
-		if key == Value::None || node.span().is_empty() {
+	pub fn add(&self, key: NodeValue<'a>, node: Node<'a>) {
+		if key == NodeValue::None || node.span().is_empty() {
 			return;
 		}
 
@@ -388,7 +388,7 @@ impl<'a> BySource<'a> {
 		}
 	}
 
-	pub fn add_node(&self, key: Value<'a>, node: Node<'a>, heap: &mut SegmentHeap<'a>) {
+	pub fn add_node(&self, key: NodeValue<'a>, node: Node<'a>, heap: &mut SegmentHeap<'a>) {
 		for key in Key::for_value(key) {
 			if key != Key::None {
 				let entries = self.by_key(key);
@@ -852,7 +852,7 @@ mod tests {
 	#[test]
 	fn test_hash() {
 		let mut map = HashMap::new();
-		map.insert(discriminant(&Value::Str("a")), 123);
-		assert_eq!(Some(&123), map.get(&discriminant(&Value::Str("z"))));
+		map.insert(discriminant(&NodeValue::Str("a")), 123);
+		assert_eq!(Some(&123), map.get(&discriminant(&NodeValue::Str("z"))));
 	}
 }

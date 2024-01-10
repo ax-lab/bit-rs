@@ -4,7 +4,7 @@ pub mod data;
 pub mod expr;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub enum Value<'a> {
+pub enum NodeValue<'a> {
 	None,
 	Unit,
 	Bool(bool),
@@ -29,15 +29,15 @@ pub enum Value<'a> {
 	While,
 }
 
-impl<'a> Value<'a> {
+impl<'a> NodeValue<'a> {
 	pub fn as_bool(&self) -> Result<bool> {
 		let value = match self {
-			&Value::None => false,
-			&Value::Unit => false,
-			&Value::Bool(v) => v,
-			&Value::Str(v) => v.len() > 0,
-			&Value::SInt(v) => v != 0,
-			&Value::UInt(v) => v != 0,
+			&NodeValue::None => false,
+			&NodeValue::Unit => false,
+			&NodeValue::Bool(v) => v,
+			&NodeValue::Str(v) => v.len() > 0,
+			&NodeValue::SInt(v) => v != 0,
+			&NodeValue::UInt(v) => v != 0,
 			_ => format!("value is not a valid boolean: {self}").err()?,
 		};
 		Ok(value)
@@ -45,58 +45,58 @@ impl<'a> Value<'a> {
 
 	pub fn is_block(&self) -> bool {
 		match self {
-			Value::Group { .. } => true,
-			Value::Sequence { .. } => true,
+			NodeValue::Group { .. } => true,
+			NodeValue::Sequence { .. } => true,
 			_ => false,
 		}
 	}
 }
 
-impl<'a> Display for Value<'a> {
+impl<'a> Display for NodeValue<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Value::None => write!(f, ""),
-			Value::Unit => write!(f, "()"),
-			Value::Bool(v) => write!(f, "{v}"),
-			Value::Str(v) => write!(f, "{v}"),
-			Value::SInt(v) => write!(f, "{v}"),
-			Value::UInt(v) => write!(f, "{v}"),
-			Value::Token(tok) => write!(f, "{tok}"),
+			NodeValue::None => write!(f, ""),
+			NodeValue::Unit => write!(f, "()"),
+			NodeValue::Bool(v) => write!(f, "{v}"),
+			NodeValue::Str(v) => write!(f, "{v}"),
+			NodeValue::SInt(v) => write!(f, "{v}"),
+			NodeValue::UInt(v) => write!(f, "{v}"),
+			NodeValue::Token(tok) => write!(f, "{tok}"),
 			_ => write!(f, "{self:?}"),
 		}
 	}
 }
 
-impl<'a> Debug for Value<'a> {
+impl<'a> Debug for NodeValue<'a> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		match self {
-			Value::None => write!(f, "(none)"),
-			Value::Unit => write!(f, "()"),
-			Value::Bool(v) => write!(f, "{v:?}"),
-			Value::Str(v) => write!(f, "{v:?}"),
-			Value::SInt(v) => write!(f, "{v:?}"),
-			Value::UInt(v) => write!(f, "{v:?}"),
-			Value::Token(tok) => write!(f, "Token({tok:?})"),
-			Value::Source(src) => write!(f, "Source({src:?})"),
-			Value::Module(src) => write!(f, "Module({src:?})"),
-			Value::LetDecl(var) => write!(f, "LetDecl({var:?})"),
-			Value::Let(var) => write!(f, "Let({var:?})"),
-			Value::Var(var) => write!(f, "Var({var:?})"),
-			Value::BinaryOp(op) => write!(f, "BinaryOp({op})"),
-			Value::Group { scoped } => write!(f, "Group(scoped={scoped})"),
-			Value::Sequence { scoped, indented } => write!(f, "Sequence(scoped={scoped}, indented={indented})"),
-			Value::Print => write!(f, "Print"),
-			Value::Indent(up) => write!(f, "Ident({up})"),
-			Value::If => write!(f, "If"),
-			Value::ElseIf => write!(f, "ElseIf"),
-			Value::Else => write!(f, "Else"),
-			Value::For => write!(f, "For"),
-			Value::While => write!(f, "While"),
+			NodeValue::None => write!(f, "(none)"),
+			NodeValue::Unit => write!(f, "()"),
+			NodeValue::Bool(v) => write!(f, "{v:?}"),
+			NodeValue::Str(v) => write!(f, "{v:?}"),
+			NodeValue::SInt(v) => write!(f, "{v:?}"),
+			NodeValue::UInt(v) => write!(f, "{v:?}"),
+			NodeValue::Token(tok) => write!(f, "Token({tok:?})"),
+			NodeValue::Source(src) => write!(f, "Source({src:?})"),
+			NodeValue::Module(src) => write!(f, "Module({src:?})"),
+			NodeValue::LetDecl(var) => write!(f, "LetDecl({var:?})"),
+			NodeValue::Let(var) => write!(f, "Let({var:?})"),
+			NodeValue::Var(var) => write!(f, "Var({var:?})"),
+			NodeValue::BinaryOp(op) => write!(f, "BinaryOp({op})"),
+			NodeValue::Group { scoped } => write!(f, "Group(scoped={scoped})"),
+			NodeValue::Sequence { scoped, indented } => write!(f, "Sequence(scoped={scoped}, indented={indented})"),
+			NodeValue::Print => write!(f, "Print"),
+			NodeValue::Indent(up) => write!(f, "Ident({up})"),
+			NodeValue::If => write!(f, "If"),
+			NodeValue::ElseIf => write!(f, "ElseIf"),
+			NodeValue::Else => write!(f, "Else"),
+			NodeValue::For => write!(f, "For"),
+			NodeValue::While => write!(f, "While"),
 		}
 	}
 }
 
-impl<'a> Writable for Value<'a> {
+impl<'a> Writable for NodeValue<'a> {
 	fn write(&self, f: &mut Writer) -> Result<()> {
 		self.write_fmt(f)
 	}
@@ -104,7 +104,7 @@ impl<'a> Writable for Value<'a> {
 
 impl<'a> Node<'a> {
 	#[inline]
-	pub fn key(self) -> Value<'a> {
+	pub fn key(self) -> NodeValue<'a> {
 		self.value()
 	}
 }
@@ -117,33 +117,33 @@ mod tests {
 	pub fn builtin_values() {
 		let ctx = Context::new();
 		let ctx = ctx.get();
-		let a = ctx.node(Value::Unit, Span::empty());
-		assert_eq!(Value::Unit, a.value());
+		let a = ctx.node(NodeValue::Unit, Span::empty());
+		assert_eq!(NodeValue::Unit, a.value());
 		assert_eq!("()", format!("{a}"));
 		assert_eq!("()", format!("{a:?}"));
 
-		let a = ctx.node(Value::Bool(true), Span::empty());
-		assert_eq!(Value::Bool(true), a.value());
+		let a = ctx.node(NodeValue::Bool(true), Span::empty());
+		assert_eq!(NodeValue::Bool(true), a.value());
 		assert_eq!("true", format!("{a}"));
 		assert_eq!("true", format!("{a:?}"));
 
-		let a = ctx.node(Value::Bool(false), Span::empty());
-		assert_eq!(Value::Bool(false), a.value());
+		let a = ctx.node(NodeValue::Bool(false), Span::empty());
+		assert_eq!(NodeValue::Bool(false), a.value());
 		assert_eq!("false", format!("{a}"));
 		assert_eq!("false", format!("{a:?}"));
 
-		let a = ctx.node(Value::SInt(42), Span::empty());
-		assert_eq!(Value::SInt(42), a.value());
+		let a = ctx.node(NodeValue::SInt(42), Span::empty());
+		assert_eq!(NodeValue::SInt(42), a.value());
 		assert_eq!("42", format!("{a}"));
 		assert_eq!("42", format!("{a:?}"));
 
-		let a = ctx.node(Value::UInt(69), Span::empty());
-		assert_eq!(Value::UInt(69), a.value());
+		let a = ctx.node(NodeValue::UInt(69), Span::empty());
+		assert_eq!(NodeValue::UInt(69), a.value());
 		assert_eq!("69", format!("{a}"));
 		assert_eq!("69", format!("{a:?}"));
 
-		let a = ctx.node(Value::Str("abc123"), Span::empty());
-		assert_eq!(Value::Str("abc123"), a.value());
+		let a = ctx.node(NodeValue::Str("abc123"), Span::empty());
+		assert_eq!(NodeValue::Str("abc123"), a.value());
 		assert_eq!("abc123", format!("{a}"));
 		assert_eq!("\"abc123\"", format!("{a:?}"));
 	}

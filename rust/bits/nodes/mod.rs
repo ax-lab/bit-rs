@@ -24,7 +24,7 @@ impl<'a> IsContext<'a> for NodeContext<'a> {
 }
 
 impl<'a> ContextRef<'a> {
-	pub fn node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
+	pub fn node(&self, value: NodeValue<'a>, span: Span<'a>) -> Node<'a> {
 		self.nodes().new_node(value, span)
 	}
 
@@ -38,7 +38,7 @@ impl<'a> ContextRef<'a> {
 }
 
 impl<'a> NodeContext<'a> {
-	pub fn new_node(&self, value: Value<'a>, span: Span<'a>) -> Node<'a> {
+	pub fn new_node(&self, value: NodeValue<'a>, span: Span<'a>) -> Node<'a> {
 		let data = self.ctx.store(NodeData {
 			ctx: self.ctx,
 			span: span.into(),
@@ -70,7 +70,7 @@ const FLAG_SILENT: u8 = 2;
 pub struct NodeData<'a> {
 	ctx: ContextRef<'a>,
 	span: Cell<Span<'a>>,
-	value: Cell<Value<'a>>,
+	value: Cell<NodeValue<'a>>,
 	nodes: Cell<&'a [Node<'a>]>,
 	parent: Cell<Option<Node<'a>>>,
 	index: Cell<usize>,
@@ -95,11 +95,11 @@ impl<'a> Node<'a> {
 	}
 
 	#[inline]
-	pub fn value(self) -> Value<'a> {
+	pub fn value(self) -> NodeValue<'a> {
 		self.data.value.get()
 	}
 
-	pub fn set_value(self, value: Value<'a>) {
+	pub fn set_value(self, value: NodeValue<'a>) {
 		self.data.value.set(value);
 		self.data.status.set(0);
 		self.context().nodes().reindex_node(self)
@@ -182,7 +182,7 @@ impl<'a> Node<'a> {
 
 	pub fn as_name(self) -> Result<Symbol> {
 		let value_node = self.actual_value();
-		if let Value::Token(Token::Word(symbol)) = value_node.value() {
+		if let NodeValue::Token(Token::Word(symbol)) = value_node.value() {
 			Ok(symbol)
 		} else {
 			let span = self.span();
@@ -201,12 +201,12 @@ impl<'a> Node<'a> {
 
 	pub fn actual_value(self) -> Node<'a> {
 		match self.value() {
-			Value::Group { .. } => {
+			NodeValue::Group { .. } => {
 				if self.len() == 1 {
 					return self.node(0).unwrap().actual_value();
 				}
 			}
-			Value::Module(_) | Value::Sequence { .. } => {
+			NodeValue::Module(_) | NodeValue::Sequence { .. } => {
 				if let Some(node) = self.last() {
 					return node.actual_value();
 				}

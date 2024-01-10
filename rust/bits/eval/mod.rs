@@ -10,10 +10,10 @@ impl<'a> Node<'a> {
 			let span = node.span();
 			let is_scope = !span.is_empty()
 				&& match node.value() {
-					Value::Group { scoped, .. } => scoped,
-					Value::Sequence { scoped, .. } => scoped,
-					Value::Source(..) => true,
-					Value::Module(..) => true,
+					NodeValue::Group { scoped, .. } => scoped,
+					NodeValue::Sequence { scoped, .. } => scoped,
+					NodeValue::Source(..) => true,
+					NodeValue::Module(..) => true,
 					_ => false,
 				};
 
@@ -87,15 +87,15 @@ impl<'a> Evaluator<'a> for TokenizeSource {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let mut errors = Vec::new();
 		for it in binding.nodes() {
-			if let Value::Source(source) = it.value() {
+			if let NodeValue::Source(source) = it.value() {
 				let mut tokenizer = ctx.new_tokenizer()?;
 				let tokens = tokenizer.parse_source(source);
 				match tokens {
 					Ok(tokens) => {
 						let tokens = tokens
 							.into_iter()
-							.map(|(token, span)| ctx.node(Value::Token(token), span));
-						it.set_value(Value::Module(source));
+							.map(|(token, span)| ctx.node(NodeValue::Token(token), span));
+						it.set_value(NodeValue::Module(source));
 						it.flag_done();
 						it.append_nodes(tokens);
 					}
@@ -131,7 +131,7 @@ impl<'a> Evaluator<'a> for EvalLineBreak {
 					if let Some(&current) = indent.last() {
 						if level > current {
 							indent.push(level);
-							let inc = ctx.node(Value::Indent(true), span_indent);
+							let inc = ctx.node(NodeValue::Indent(true), span_indent);
 							new_nodes.push(inc);
 						} else if level < current {
 							let mut current = current;
@@ -144,14 +144,14 @@ impl<'a> Evaluator<'a> for EvalLineBreak {
 									err!("at {span}: invalid indentation (dedent is less than the base indentation)")?;
 								}
 
-								let dec = ctx.node(Value::Indent(false), span_indent);
+								let dec = ctx.node(NodeValue::Indent(false), span_indent);
 								new_nodes.push(dec);
 							}
 						}
 					} else {
 						indent.push(level);
 					}
-					let node = ctx.node(Value::Group { scoped: false }, span);
+					let node = ctx.node(NodeValue::Group { scoped: false }, span);
 					node.append_nodes(nodes);
 					node.flag_done();
 					new_nodes.push(node);
@@ -172,7 +172,7 @@ impl<'a> Evaluator<'a> for EvalLineBreak {
 
 			while indent.len() > 1 {
 				indent.pop();
-				let dec = ctx.node(Value::Indent(false), span_last);
+				let dec = ctx.node(NodeValue::Indent(false), span_last);
 				new_nodes.push(dec);
 			}
 
@@ -193,7 +193,7 @@ impl<'a> Evaluator<'a> for EvalPrint {
 				let index = it.index();
 				let nodes = parent.remove_nodes(index..);
 				let span = Span::range(nodes);
-				let node = ctx.node(Value::Print, span);
+				let node = ctx.node(NodeValue::Print, span);
 				node.set_nodes(&nodes[1..]);
 				node.flag_done();
 				parent.push_node(node);
@@ -223,12 +223,12 @@ impl<'a> Evaluator<'a> for EvalLetExpr {
 			}
 
 			let (name, expr, span) = if let Some(name) = it.next() {
-				let has_eq = name.next().map(|x| x.value()) == Some(Value::Token(Token::Symbol(Symbol::str("="))));
+				let has_eq = name.next().map(|x| x.value()) == Some(NodeValue::Token(Token::Symbol(Symbol::str("="))));
 				if !has_eq {
 					continue;
 				}
 
-				if let Value::Token(Token::Word(name)) = name.value() {
+				if let NodeValue::Token(Token::Word(name)) = name.value() {
 					let nodes = parent.remove_nodes(..);
 					nodes[0].ignore();
 					nodes[1].ignore();
@@ -243,7 +243,7 @@ impl<'a> Evaluator<'a> for EvalLetExpr {
 				continue;
 			};
 
-			let node = ctx.node(Value::LetDecl(name), span);
+			let node = ctx.node(NodeValue::LetDecl(name), span);
 			node.set_nodes(expr);
 			parent.push_node(node);
 		}
@@ -258,7 +258,7 @@ impl<'a> Evaluator<'a> for EvalLetDecl {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		for it in binding.nodes() {
 			let span = it.span();
-			let name = if let Value::LetDecl(name) = it.value() {
+			let name = if let NodeValue::LetDecl(name) = it.value() {
 				name
 			} else {
 				err!("at {span}: invalid let decl value -- {it}")?
@@ -272,7 +272,7 @@ impl<'a> Evaluator<'a> for EvalLetDecl {
 				};
 
 				let var = ctx.declare_var_range(name, *it, src, range);
-				Value::Let(var)
+				NodeValue::Let(var)
 			} else {
 				err!("let without scope at {span}")?
 			};
@@ -314,7 +314,7 @@ impl<'a> Evaluator<'a> for EvalVar<'a> {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = ctx;
 		for it in binding.nodes() {
-			it.set_value(Value::Var(self.0));
+			it.set_value(NodeValue::Var(self.0));
 			it.ignore();
 		}
 		Ok(())
@@ -342,14 +342,14 @@ impl<'a> Evaluator<'a> for EvalBinaryOp {
 			}
 
 			let op_span = Span::range(op_value);
-			let op_node = ctx.node(Value::Group { scoped: false }, op_span);
+			let op_node = ctx.node(NodeValue::Group { scoped: false }, op_span);
 			op_node.flag_done();
 			op_node.set_nodes(op_value);
 			let node = match prev_op_node {
 				None => op_node,
 				Some(op_prev) => {
 					let span = Span::merge(op_prev.span(), op_node.span());
-					let node = ctx.node(Value::BinaryOp(op), span);
+					let node = ctx.node(NodeValue::BinaryOp(op), span);
 					if self.group_right {
 						node.append_nodes([op_node, op_prev]);
 					} else {
@@ -409,11 +409,11 @@ impl<'a> Evaluator<'a> for EvalIndent {
 				cur = idx + 1;
 
 				match it.value() {
-					Value::Indent(true) => {
+					NodeValue::Indent(true) => {
 						stack.push(Vec::new());
 					}
 
-					Value::Indent(false) => {
+					NodeValue::Indent(false) => {
 						if stack.len() <= 1 {
 							let span = it.span();
 							err!("[BUG] unbalanced dedent at {span}")?;
@@ -421,7 +421,7 @@ impl<'a> Evaluator<'a> for EvalIndent {
 
 						let nodes = stack.pop().unwrap();
 						let node = ctx.node(
-							Value::Sequence {
+							NodeValue::Sequence {
 								scoped: true,
 								indented: true,
 							},
@@ -469,7 +469,7 @@ impl<'a> Evaluator<'a> for EvalIndentedBlock {
 
 			let span = sep.span();
 			if let Some(next) = sep.find_next() {
-				let is_seq = if let Value::Sequence { indented, .. } = next.value() {
+				let is_seq = if let NodeValue::Sequence { indented, .. } = next.value() {
 					indented
 				} else {
 					false
@@ -481,7 +481,7 @@ impl<'a> Evaluator<'a> for EvalIndentedBlock {
 
 				let children = node.remove_nodes(..);
 				let children = &children[..children.len() - 1];
-				let head = ctx.node(Value::Group { scoped: true }, Span::range(children));
+				let head = ctx.node(NodeValue::Group { scoped: true }, Span::range(children));
 				head.set_nodes(children);
 				head.flag_done();
 
@@ -525,7 +525,7 @@ impl<'a> Evaluator<'a> for EvalBlock<'a> {
 
 			let block = loop {
 				let span = if let Some(next) = parent.next() {
-					if let Value::Sequence { indented, .. } = next.value() {
+					if let NodeValue::Sequence { indented, .. } = next.value() {
 						if indented {
 							break next;
 						}
@@ -545,7 +545,7 @@ impl<'a> Evaluator<'a> for EvalBlock<'a> {
 				root
 			} else {
 				let span = Span::merge(head.span(), block.span());
-				let root = ctx.node(Value::Group { scoped: true }, span);
+				let root = ctx.node(NodeValue::Group { scoped: true }, span);
 				root
 			};
 
@@ -556,32 +556,32 @@ impl<'a> Evaluator<'a> for EvalBlock<'a> {
 }
 
 pub fn eval_if<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
-	let if_cond = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+	let if_cond = ctx.node(NodeValue::Group { scoped: true }, Span::range(expr));
 	if_cond.set_nodes(expr);
 
-	root.set_value(Value::If);
+	root.set_value(NodeValue::If);
 	root.append_nodes([if_cond, block]);
 	Ok(())
 }
 
 pub fn eval_else<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
-	let (kind, expr) = if let Some(Value::Token(Token::Word(sym))) = expr.get(0).map(|x| x.value()) {
+	let (kind, expr) = if let Some(NodeValue::Token(Token::Word(sym))) = expr.get(0).map(|x| x.value()) {
 		if sym == Symbol::str("if") {
 			expr[0].ignore();
-			(Value::ElseIf, &expr[1..])
+			(NodeValue::ElseIf, &expr[1..])
 		} else {
 			let span = Span::range(expr);
 			err!("at {span}: else statement does not allow an expression")?
 		}
 	} else {
-		(Value::Else, expr)
+		(NodeValue::Else, expr)
 	};
 
 	root.set_value(kind);
 	root.flag_done();
 
 	if expr.len() > 0 {
-		let cond = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+		let cond = ctx.node(NodeValue::Group { scoped: true }, Span::range(expr));
 		cond.set_nodes(expr);
 		root.append_nodes([cond, block]);
 	} else {
@@ -592,10 +592,10 @@ pub fn eval_else<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], 
 }
 
 pub fn eval_for<'a>(ctx: ContextRef<'a>, root: Node<'a>, expr: &'a [Node<'a>], block: Node<'a>) -> Result<()> {
-	let for_expr = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+	let for_expr = ctx.node(NodeValue::Group { scoped: true }, Span::range(expr));
 	for_expr.set_nodes(expr);
 
-	root.set_value(Value::For);
+	root.set_value(NodeValue::For);
 	root.append_nodes([for_expr, block]);
 	Ok(())
 }
@@ -615,21 +615,21 @@ impl<'a> Evaluator<'a> for EvalIf {
 
 			let index = if_node.index();
 			let mut chain = 0;
-			while let Some(Value::ElseIf | Value::Else) = parent.node(index + chain + 1).map(|x| x.value()) {
+			while let Some(NodeValue::ElseIf | NodeValue::Else) = parent.node(index + chain + 1).map(|x| x.value()) {
 				chain += 1;
 			}
 
 			let chain = parent.remove_nodes(index + 1..index + 1 + chain);
 			if chain.len() > 0 {
 				for it in chain.iter().take(chain.len() - 1) {
-					if it.value() == Value::Else {
+					if it.value() == NodeValue::Else {
 						let span = it.span();
 						err!("at {span}: else must be the last statement in an if chain")?;
 					}
 				}
 
 				let last = chain.last().unwrap();
-				let (mut else_node, chain) = if let Value::Else = last.value() {
+				let (mut else_node, chain) = if let NodeValue::Else = last.value() {
 					debug_assert!(last.len() == 1);
 					let node = last.node(0).unwrap();
 					last.ignore();
@@ -640,7 +640,7 @@ impl<'a> Evaluator<'a> for EvalIf {
 				};
 
 				for &else_if in chain.iter().rev() {
-					else_if.set_value(Value::If);
+					else_if.set_value(NodeValue::If);
 					if let Some(else_node) = else_node {
 						else_if.push_node(else_node);
 					}
@@ -673,7 +673,7 @@ impl<'a> Evaluator<'a> for EvalElse {
 
 			let span_else = head.span();
 			let if_node = if let Some(if_node) = head.find_prev_non_block() {
-				if let Value::If = if_node.value() {
+				if let NodeValue::If = if_node.value() {
 					if if_node.len() != 2 {
 						err!("at {span_else}: invalid `else` statement (if block arity)")?;
 					}
@@ -692,7 +692,7 @@ impl<'a> Evaluator<'a> for EvalElse {
 
 			let block = loop {
 				let span = if let Some(next) = node.next() {
-					if let Value::Sequence { indented, .. } = next.value() {
+					if let NodeValue::Sequence { indented, .. } = next.value() {
 						if indented {
 							break next;
 						}
@@ -714,11 +714,11 @@ impl<'a> Evaluator<'a> for EvalElse {
 			}
 
 			let block = if expr.len() > 0 {
-				let expr_node = ctx.node(Value::Group { scoped: true }, Span::range(expr));
+				let expr_node = ctx.node(NodeValue::Group { scoped: true }, Span::range(expr));
 				expr_node.set_nodes(expr);
 
 				let new_block = ctx.node(
-					Value::Group { scoped: true },
+					NodeValue::Group { scoped: true },
 					Span::merge(expr_node.span(), block.span()),
 				);
 				block.remove();
@@ -742,7 +742,7 @@ impl<'a> Evaluator<'a> for EvalBool {
 	fn eval_nodes(&self, ctx: ContextRef<'a>, binding: BoundNodes<'a>) -> Result<()> {
 		let _ = ctx;
 		for it in binding.nodes() {
-			it.set_value(Value::Bool(self.0));
+			it.set_value(NodeValue::Bool(self.0));
 		}
 		Ok(())
 	}
@@ -766,7 +766,7 @@ impl<'a> Evaluator<'a> for EvalFor {
 			body.remove();
 
 			let new_loop = ctx.node(
-				Value::Sequence {
+				NodeValue::Sequence {
 					scoped: true,
 					indented: false,
 				},
@@ -776,10 +776,10 @@ impl<'a> Evaluator<'a> for EvalFor {
 				new_loop.push_node(init);
 			}
 
-			let while_node = ctx.node(Value::While, span);
+			let while_node = ctx.node(NodeValue::While, span);
 			let body = if let Some(increment) = info.increment {
 				let body = ctx.node(
-					Value::Sequence {
+					NodeValue::Sequence {
 						scoped: false,
 						indented: false,
 					},
@@ -884,7 +884,7 @@ impl<'a> Node<'a> {
 	fn get_for_loop(self, ctx: ContextRef<'a>, _root: Node<'a>) -> Result<IteratorPattern<'a>> {
 		let span = self.span();
 		match self.value() {
-			Value::BinaryOp(key) => {
+			NodeValue::BinaryOp(key) => {
 				if key == op_in() {
 					self.assert_arity("for in expr ", 2)?;
 
@@ -892,10 +892,10 @@ impl<'a> Node<'a> {
 					let id = nodes[0].as_name()?;
 					let range = nodes[1].actual_value().get_range_expr(ctx, "for in loop")?;
 
-					let init = ctx.node(Value::LetDecl(id), nodes[0].span());
+					let init = ctx.node(NodeValue::LetDecl(id), nodes[0].span());
 					init.append_nodes([range.start]);
 
-					let var_node = || ctx.node(Value::Token(Token::Word(id)), nodes[0].span());
+					let var_node = || ctx.node(NodeValue::Token(Token::Word(id)), nodes[0].span());
 					let condition = (range.condition)(ctx, var_node())?;
 					let increment = (range.increment)(ctx, var_node())?;
 
@@ -916,7 +916,7 @@ impl<'a> Node<'a> {
 		let span = self.span();
 		let at = at.as_ref();
 		match self.value() {
-			Value::BinaryOp(key) => {
+			NodeValue::BinaryOp(key) => {
 				if key == op_range() {
 					self.assert_arity("range", 2)?;
 					let nodes = self.nodes();
@@ -949,7 +949,7 @@ impl<'a> Node<'a> {
 }
 
 impl<'a> RuntimeType<'a> {
-	pub fn get_sequence_next_prev_steps(self) -> Option<(Value<'a>, Value<'a>)> {
+	pub fn get_sequence_next_prev_steps(self) -> Option<(NodeValue<'a>, NodeValue<'a>)> {
 		None
 	}
 }

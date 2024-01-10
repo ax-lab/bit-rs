@@ -38,7 +38,7 @@ fn run(mut args: Args) -> Result<()> {
 		}
 
 		let src = sources.load_file(arg)?;
-		ctx.node(Value::Source(src), src.span());
+		ctx.node(NodeValue::Source(src), src.span());
 	}
 
 	let value = execute(ctx, out);
@@ -84,39 +84,39 @@ mod tests {
 
 	#[test]
 	fn empty() -> Result<()> {
-		check(Value::None, "", "")
+		check(NodeValue::None, "", "")
 	}
 
 	#[test]
 	fn simple_string() -> Result<()> {
-		check(Value::Str("abc"), "", "'abc'")
+		check(NodeValue::Str("abc"), "", "'abc'")
 	}
 
 	#[test]
 	fn simple_int() -> Result<()> {
-		check(Value::SInt(42), "", "42")
+		check(NodeValue::SInt(42), "", "42")
 	}
 
 	#[test]
 	fn hello_world() -> Result<()> {
-		check(Value::Unit, "hello world\n", "print 'hello world'")
+		check(NodeValue::Unit, "hello world\n", "print 'hello world'")
 	}
 
 	#[test]
 	fn simple_variable() -> Result<()> {
-		check(Value::SInt(42), "", src(["let x = 42", "x"]))
+		check(NodeValue::SInt(42), "", src(["let x = 42", "x"]))
 	}
 
 	#[test]
 	#[cfg(off)]
 	fn recursive_variable() -> Result<()> {
-		check(Value::SInt(42), "", src(["let x = this"]))
+		check(NodeValue::SInt(42), "", src(["let x = this"]))
 	}
 
 	#[test]
 	fn variable_shadowing() -> Result<()> {
 		check(
-			Value::SInt(69),
+			NodeValue::SInt(69),
 			"42\n",
 			src(["let x = 42", "print x", "let x = 69", "x"]),
 		)
@@ -125,7 +125,7 @@ mod tests {
 	#[test]
 	fn simple_expression() -> Result<()> {
 		check(
-			Value::SInt(42),
+			NodeValue::SInt(42),
 			"",
 			src(["let x = 5", "let y = 2", "let z = y * y", "x * y * z + y"]),
 		)
@@ -134,13 +134,13 @@ mod tests {
 	#[test]
 	fn if_expression() -> Result<()> {
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"this is true\n",
 			src(["if true:", "\tprint 'this is true'", "else:", "\tprint 'this is false'"]),
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"this is false\n",
 			src([
 				"if false:",
@@ -150,8 +150,8 @@ mod tests {
 			]),
 		)?;
 
-		check(Value::SInt(42), "", src(["if true:", "\t42", "else:", "\t69"]))?;
-		check(Value::SInt(69), "", src(["if false:", "\t42", "else:", "\t69"]))?;
+		check(NodeValue::SInt(42), "", src(["if true:", "\t42", "else:", "\t69"]))?;
+		check(NodeValue::SInt(69), "", src(["if false:", "\t42", "else:", "\t69"]))?;
 
 		Ok(())
 	}
@@ -159,7 +159,7 @@ mod tests {
 	#[test]
 	fn else_if_expression() -> Result<()> {
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\nA\ndone\n",
 			src([
 				"print 'start'",
@@ -176,7 +176,7 @@ mod tests {
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\nB\ndone\n",
 			src([
 				"print 'start'",
@@ -193,7 +193,7 @@ mod tests {
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\nC\ndone\n",
 			src([
 				"print 'start'",
@@ -210,7 +210,7 @@ mod tests {
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\nD\ndone\n",
 			src([
 				"print 'start'",
@@ -227,7 +227,7 @@ mod tests {
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\nD\ndone\n",
 			src([
 				"print 'start'",
@@ -244,7 +244,7 @@ mod tests {
 		)?;
 
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"start\ndone\n",
 			src([
 				"print 'start'",
@@ -267,24 +267,24 @@ mod tests {
 	#[ignore]
 	fn simple_foreach() -> Result<()> {
 		check(
-			Value::Unit,
+			NodeValue::Unit,
 			"1\n2\n3\n4\n5\ndone\n",
 			src(["for i in 1..6:", "\tprint i", "print 'done'"]),
 		)
 	}
 
-	fn check<T: Into<String>>(expected_value: Value, expected_output: &str, code: T) -> Result<()> {
+	fn check<T: Into<String>>(expected_value: NodeValue, expected_output: &str, code: T) -> Result<()> {
 		let mut out = String::new();
 
 		// ignore the incoming value lifetime
-		let expected_value: Value = unsafe { std::mem::transmute(expected_value) };
+		let expected_value: NodeValue = unsafe { std::mem::transmute(expected_value) };
 
 		let ctx = Context::new();
 		let ctx = ctx.get();
 		init_context(ctx)?;
 
 		let src = ctx.sources().from_string("eval", code);
-		ctx.node(Value::Source(src), src.span());
+		ctx.node(NodeValue::Source(src), src.span());
 
 		let ans = {
 			let w = Writer::fmt(&mut out);

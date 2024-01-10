@@ -9,7 +9,7 @@ pub use vars::*;
 pub struct Runtime<'a> {
 	ctx: ContextRef<'a>,
 	out: Writer<'a>,
-	vars: HashMap<Var<'a>, Value<'a>>,
+	vars: HashMap<Var<'a>, NodeValue<'a>>,
 }
 
 impl<'a> Runtime<'a> {
@@ -68,30 +68,30 @@ impl<'a> Code<'a> {
 		self.node
 	}
 
-	pub fn execute<'b>(&self, rt: &mut Runtime<'a>) -> Result<Value<'a>> {
+	pub fn execute<'b>(&self, rt: &mut Runtime<'a>) -> Result<NodeValue<'a>> {
 		let span = self.span;
 		let value = match self.expr {
-			Expr::None => Value::None,
+			Expr::None => NodeValue::None,
 			Expr::Seq(list) => {
-				let mut output = Value::None;
+				let mut output = NodeValue::None;
 				for it in list {
 					output = it.execute(rt)?;
 				}
 				output
 			}
-			Expr::Unit => Value::Unit,
-			Expr::Bool(v) => Value::Bool(v),
-			Expr::SInt(v) => Value::SInt(v),
-			Expr::UInt(v) => Value::UInt(v),
-			Expr::Str(str) => Value::Str(str),
+			Expr::Unit => NodeValue::Unit,
+			Expr::Bool(v) => NodeValue::Bool(v),
+			Expr::SInt(v) => NodeValue::SInt(v),
+			Expr::UInt(v) => NodeValue::UInt(v),
+			Expr::Str(str) => NodeValue::Str(str),
 			Expr::Print(args) => {
 				let mut has_output = false;
 				for it in args {
 					let it = it.execute(rt)?;
 					match it {
-						Value::None => continue,
-						Value::Unit => continue,
-						Value::Str(s) => {
+						NodeValue::None => continue,
+						NodeValue::Unit => continue,
+						NodeValue::Str(s) => {
 							if s.len() == 0 {
 								continue;
 							}
@@ -106,7 +106,7 @@ impl<'a> Code<'a> {
 					has_output = true;
 				}
 				write!(rt.out, "\n")?;
-				Value::Unit
+				NodeValue::Unit
 			}
 			Expr::Let(var, code) => {
 				let value = code.execute(rt)?;
@@ -206,25 +206,25 @@ impl<'a> Node<'a> {
 		};
 		let ops = self.context().ops();
 		let typ = match self.value() {
-			Value::None => types.none(),
-			Value::Unit => types.unit(),
-			Value::Bool(_) => types.bool(),
-			Value::Str(_) => types.str(),
-			Value::SInt(_) => types.sint(),
-			Value::UInt(_) => types.uint(),
-			Value::Source(_) => types.invalid(),
-			Value::Indent(_) => types.invalid(),
-			Value::Module(_) => seq_type()?,
-			Value::Token(Token::Integer) => types.sint(),
-			Value::Token(Token::Literal) => types.str(),
-			Value::Token(_) => types.invalid(),
-			Value::LetDecl(_) => types.invalid(),
-			Value::Let(_) => child_type()?,
-			Value::Var(var) => var.node().do_eval_type(output, chain)?,
-			Value::Group { .. } => child_type()?,
-			Value::Sequence { .. } => seq_type()?,
-			Value::Print => types.unit(),
-			Value::BinaryOp(op) => {
+			NodeValue::None => types.none(),
+			NodeValue::Unit => types.unit(),
+			NodeValue::Bool(_) => types.bool(),
+			NodeValue::Str(_) => types.str(),
+			NodeValue::SInt(_) => types.sint(),
+			NodeValue::UInt(_) => types.uint(),
+			NodeValue::Source(_) => types.invalid(),
+			NodeValue::Indent(_) => types.invalid(),
+			NodeValue::Module(_) => seq_type()?,
+			NodeValue::Token(Token::Integer) => types.sint(),
+			NodeValue::Token(Token::Literal) => types.str(),
+			NodeValue::Token(_) => types.invalid(),
+			NodeValue::LetDecl(_) => types.invalid(),
+			NodeValue::Let(_) => child_type()?,
+			NodeValue::Var(var) => var.node().do_eval_type(output, chain)?,
+			NodeValue::Group { .. } => child_type()?,
+			NodeValue::Sequence { .. } => seq_type()?,
+			NodeValue::Print => types.unit(),
+			NodeValue::BinaryOp(op) => {
 				let nodes = self.nodes();
 				if nodes.len() != 2 {
 					types.invalid()
@@ -235,7 +235,7 @@ impl<'a> Node<'a> {
 					ops.get_binary_output(output, (lhs, rhs))
 				}
 			}
-			Value::If => {
+			NodeValue::If => {
 				let nodes = self.nodes();
 				let arity = nodes.len();
 				if arity <= 1 || arity > 3 {
@@ -250,10 +250,10 @@ impl<'a> Node<'a> {
 					t1.sum(t2)
 				}
 			}
-			Value::ElseIf => types.invalid(),
-			Value::Else => types.invalid(),
-			Value::For => types.unit(),
-			Value::While => types.unit(),
+			NodeValue::ElseIf => types.invalid(),
+			NodeValue::Else => types.invalid(),
+			NodeValue::For => types.unit(),
+			NodeValue::While => types.unit(),
 		};
 		Ok(typ)
 	}
@@ -262,41 +262,41 @@ impl<'a> Node<'a> {
 		let span = self.span();
 		let ctx = self.context();
 		let expr = match self.value() {
-			Value::None => Expr::None,
-			Value::Unit => Expr::Unit,
-			Value::Bool(v) => Expr::Bool(v),
-			Value::Str(v) => Expr::Str(v),
-			Value::SInt(v) => Expr::SInt(v),
-			Value::UInt(v) => Expr::UInt(v),
-			Value::Source(_) => Expr::None,
-			Value::Indent(_) => Expr::None,
-			Value::Token(Token::Integer) => {
+			NodeValue::None => Expr::None,
+			NodeValue::Unit => Expr::Unit,
+			NodeValue::Bool(v) => Expr::Bool(v),
+			NodeValue::Str(v) => Expr::Str(v),
+			NodeValue::SInt(v) => Expr::SInt(v),
+			NodeValue::UInt(v) => Expr::UInt(v),
+			NodeValue::Source(_) => Expr::None,
+			NodeValue::Indent(_) => Expr::None,
+			NodeValue::Token(Token::Integer) => {
 				let val = span.text();
 				let val = parse_int(val, 10)?;
 				Expr::SInt(val)
 			}
-			Value::Token(Token::Literal) => {
+			NodeValue::Token(Token::Literal) => {
 				// TODO: properly parse string
 				let str = span.text();
 				let str = &str[1..str.len() - 1];
 				Expr::Str(str)
 			}
-			Value::Token(_) => Expr::None,
-			Value::LetDecl(_) => Expr::None,
-			Value::Let(var) => {
+			NodeValue::Token(_) => Expr::None,
+			NodeValue::LetDecl(_) => Expr::None,
+			NodeValue::Let(var) => {
 				let code = self.compile_child()?;
 				let code = ctx.store(code);
 				Expr::Let(var, code)
 			}
-			Value::Var(var) => Expr::Var(var),
-			Value::Module(_) => self.compile_seq()?,
-			Value::Sequence { .. } => self.compile_seq()?,
-			Value::Group { .. } => return self.compile_child(),
-			Value::Print => {
+			NodeValue::Var(var) => Expr::Var(var),
+			NodeValue::Module(_) => self.compile_seq()?,
+			NodeValue::Sequence { .. } => self.compile_seq()?,
+			NodeValue::Group { .. } => return self.compile_child(),
+			NodeValue::Print => {
 				let args = self.compile_nodes()?;
 				Expr::Print(args)
 			}
-			Value::BinaryOp(op) => {
+			NodeValue::BinaryOp(op) => {
 				if self.len() != 2 {
 					err!("at {span}: binary operator must have exactly two children: {self}")?;
 				}
@@ -315,9 +315,9 @@ impl<'a> Node<'a> {
 				let op = ctx.ops().get(op).get_binary(out, (lhs_type, rhs_type))?;
 				Expr::BinaryOp(op, lhs, rhs)
 			}
-			Value::ElseIf => Expr::None,
-			Value::Else => Expr::None,
-			Value::If => {
+			NodeValue::ElseIf => Expr::None,
+			NodeValue::Else => Expr::None,
+			NodeValue::If => {
 				let arity = self.len();
 				if arity <= 1 || arity > 3 {
 					err!("at {span}: invalid arity ({arity}) for if operator")?;
@@ -352,11 +352,11 @@ impl<'a> Node<'a> {
 					otherwise,
 				}
 			}
-			Value::For => Expr::None,
-			Value::While => todo!(),
+			NodeValue::For => Expr::None,
+			NodeValue::While => todo!(),
 		};
 
-		if expr == Expr::None && self.value() != Value::None {
+		if expr == Expr::None && self.value() != NodeValue::None {
 			err!("at {span}: node cannot be compiled: {self}")?;
 		}
 
