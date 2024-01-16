@@ -13,8 +13,20 @@
 //! The core language is designed to provide access to essential features of
 //! the C language, but not much else.
 
-use std::fmt::{Debug, Display, Formatter};
+use std::{
+	fmt::{Debug, Display, Formatter},
+	io::Write,
+	ptr::NonNull,
+	sync::{
+		atomic::{AtomicUsize, Ordering as Order},
+		OnceLock,
+	},
+};
 
+mod arena;
+mod format;
 mod result;
 
+pub use arena::*;
+pub use format::*;
 pub use result::*;
