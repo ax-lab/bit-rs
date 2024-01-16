@@ -6,7 +6,7 @@ resolver = "2"
 
 members = [
 	"bit",
-	"bits"
+	"boot"
 ]
 
 [profile.release]

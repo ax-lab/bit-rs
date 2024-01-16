@@ -13,4 +13,4 @@ path = "main.rs"
 
 [dependencies]
 
-bits = { path = "../bits" }
+boot = { path = "../boot" }
