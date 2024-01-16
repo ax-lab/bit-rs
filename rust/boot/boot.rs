@@ -14,12 +14,14 @@
 //! the C language, but not much else.
 
 use std::{
+	cell::UnsafeCell,
 	fmt::{Debug, Display, Formatter},
 	io::Write,
+	mem::MaybeUninit,
 	ptr::NonNull,
 	sync::{
-		atomic::{AtomicUsize, Ordering as Order},
-		OnceLock,
+		atomic::{AtomicPtr, AtomicUsize, Ordering as Order},
+		Once,
 	},
 };
 

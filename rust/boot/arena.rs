@@ -2,6 +2,10 @@ use std::alloc::Layout;
 
 use super::*;
 
+//====================================================================================================================//
+// Arena
+//====================================================================================================================//
+
 const DEFAULT_ALIGN: usize = 64;
 const DEFAULT_ARENA: usize = 512 * MB;
 
@@ -17,8 +21,8 @@ unsafe impl Sync for Arena {}
 impl Arena {
 	#[inline(always)]
 	pub fn get() -> &'static Self {
-		static GLOBAL: OnceLock<Arena> = OnceLock::new();
-		GLOBAL.get_or_init(|| Arena::new(DEFAULT_ARENA))
+		static GLOBAL: ArenaInit = ArenaInit::new();
+		GLOBAL.get()
 	}
 
 	pub fn new(size: usize) -> Self {
@@ -89,11 +93,106 @@ impl Drop for Arena {
 	}
 }
 
+/// Supports lazy initialization for a static arena.
+struct ArenaInit {
+	data: AtomicPtr<Arena>,
+	init: Once,
+}
+
+unsafe impl Send for ArenaInit {}
+unsafe impl Sync for ArenaInit {}
+
+impl ArenaInit {
+	pub const fn new() -> Self {
+		Self {
+			data: AtomicPtr::new(std::ptr::null_mut()),
+			init: Once::new(),
+		}
+	}
+
+	#[inline(always)]
+	pub fn get(&self) -> &'static Arena {
+		let data = self.data.load(Order::Relaxed);
+		let data = if data.is_null() { self.init() } else { data };
+		debug_assert!(!data.is_null());
+		unsafe { &*data }
+	}
+
+	fn init(&self) -> *mut Arena {
+		self.init.call_once(|| {
+			let data = Box::leak(Box::new(Arena::new(DEFAULT_ARENA)));
+			self.data.store(data, Order::Relaxed);
+		});
+		let data = self.data.load(Order::Relaxed);
+		debug_assert!(!data.is_null());
+		data
+	}
+}
+
 #[inline(always)]
 fn align_to(value: usize, align_to: usize) -> usize {
 	debug_assert!(align_to.is_power_of_two());
 	(value + align_to - 1) & !(align_to - 1)
 }
+
+//====================================================================================================================//
+// Init
+//====================================================================================================================//
+
+/// Provides a lazily initiated static value backed by the global [`Arena`].
+pub struct Init<T> {
+	data: AtomicPtr<T>,
+	init: std::sync::Once,
+	func: UnsafeCell<fn() -> T>,
+}
+
+unsafe impl<T> Sync for Init<T> {}
+
+impl<T> Init<T> {
+	pub const fn new(func: fn() -> T) -> Self {
+		Self {
+			data: AtomicPtr::new(std::ptr::null_mut()),
+			init: std::sync::Once::new(),
+			func: UnsafeCell::new(func),
+		}
+	}
+
+	pub const fn default() -> Self
+	where
+		T: Default,
+	{
+		Self::new(|| T::default())
+	}
+
+	#[inline(always)]
+	pub fn get(&self) -> &'static T {
+		let data = self.data.load(Order::Relaxed);
+		let data = if data.is_null() { self.init() } else { data };
+		debug_assert!(!data.is_null());
+		unsafe { &*data }
+	}
+
+	#[inline(always)]
+	pub fn value(&self) -> T
+	where
+		T: Copy + 'static,
+	{
+		*self.get()
+	}
+
+	fn init(&self) -> *mut T {
+		self.init.call_once(|| {
+			let func = unsafe { &*self.func.get() };
+			let data = Arena::get().alloc(func());
+			self.data.store(data.as_ptr(), Order::Relaxed);
+		});
+		self.data.load(Order::Relaxed)
+	}
+}
+
+//====================================================================================================================//
+// Tests
+//====================================================================================================================//
 
 #[cfg(test)]
 mod tests {
@@ -127,5 +226,25 @@ mod tests {
 		let arena = Arena::get();
 		let ptr = arena.alloc_layout(Layout::from_size_align(128, 64).unwrap());
 		unsafe { ptr.as_ptr().write_bytes(0x01, 128) };
+	}
+
+	#[test]
+	fn init_works() {
+		static ANS: Init<X> = Init::default();
+
+		assert_eq!(X(42), ANS.value());
+		assert_eq!(X(42), ANS.value());
+		assert_eq!(X(43), X::default());
+		assert_eq!(X(44), X::default());
+
+		#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+		struct X(usize);
+
+		impl Default for X {
+			fn default() -> Self {
+				static CHANGE: AtomicUsize = AtomicUsize::new(42);
+				Self(CHANGE.fetch_add(1, Order::Relaxed))
+			}
+		}
 	}
 }
