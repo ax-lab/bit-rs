@@ -6,8 +6,8 @@ use super::*;
 // Arena
 //====================================================================================================================//
 
-const DEFAULT_ALIGN: usize = 64;
-const DEFAULT_ARENA: usize = 512 * MB;
+const ARENA_ALIGNMENT: usize = 64;
+const GLOBAL_ARENA_SIZE: usize = 512 * MB;
 
 pub struct Arena {
 	size: usize,
@@ -26,7 +26,7 @@ impl Arena {
 	}
 
 	pub fn new(size: usize) -> Self {
-		let layout = Layout::from_size_align(size, DEFAULT_ALIGN).unwrap();
+		let layout = Layout::from_size_align(size, ARENA_ALIGNMENT).unwrap();
 		let data = unsafe { std::alloc::alloc(layout) };
 		let data = if let Some(data) = NonNull::new(data) {
 			unsafe { data.as_ptr().write_bytes(0xBD, size) };
@@ -38,6 +38,42 @@ impl Arena {
 			size,
 			next: 0.into(),
 			data,
+		}
+	}
+
+	pub fn str<T: AsRef<str>>(&self, str: T) -> &str {
+		let bytes = str.as_ref().as_bytes();
+		let len = bytes.len();
+		let layout = Layout::for_value(bytes);
+		let data = self.alloc_layout(layout);
+		unsafe {
+			let data = data.as_ptr();
+			std::ptr::copy_nonoverlapping(bytes.as_ptr(), data, len);
+			let data = std::slice::from_raw_parts(data, len);
+			std::str::from_utf8_unchecked(data)
+		}
+	}
+
+	#[inline(always)]
+	pub fn slice<T: IntoIterator<Item = U>, U>(&self, elems: T) -> &mut [U]
+	where
+		T::IntoIter: ExactSizeIterator,
+	{
+		let elems = elems.into_iter();
+		let count = elems.len();
+		if count == 0 {
+			return &mut [];
+		}
+
+		let size = count * std::mem::size_of::<U>();
+		let align = std::mem::align_of::<U>();
+		let layout = Layout::from_size_align(size, align).unwrap();
+		let data = self.alloc_layout(layout).cast::<U>().as_ptr();
+		unsafe {
+			for (n, it) in elems.enumerate() {
+				data.add(n).write(it);
+			}
+			std::slice::from_raw_parts_mut(data, count)
 		}
 	}
 
@@ -86,7 +122,7 @@ impl Drop for Arena {
 	fn drop(&mut self) {
 		unsafe {
 			let data = self.data.as_ptr();
-			let layout = Layout::from_size_align(self.size, DEFAULT_ALIGN).unwrap();
+			let layout = Layout::from_size_align(self.size, ARENA_ALIGNMENT).unwrap();
 			data.write_bytes(0xBF, self.size);
 			std::alloc::dealloc(data, layout);
 		}
@@ -120,7 +156,7 @@ impl ArenaInit {
 
 	fn init(&self) -> *mut Arena {
 		self.init.call_once(|| {
-			let data = Box::leak(Box::new(Arena::new(DEFAULT_ARENA)));
+			let data = Box::leak(Box::new(Arena::new(GLOBAL_ARENA_SIZE)));
 			self.data.store(data, Order::Relaxed);
 		});
 		let data = self.data.load(Order::Relaxed);
@@ -246,5 +282,19 @@ mod tests {
 				Self(CHANGE.fetch_add(1, Order::Relaxed))
 			}
 		}
+	}
+
+	#[test]
+	fn arena_str() {
+		let arena = Arena::get();
+		let str = arena.str("abc123");
+		assert_eq!("abc123", str);
+	}
+
+	#[test]
+	fn arena_slice() {
+		let arena = Arena::get();
+		let list = arena.slice([1, 2, 3, 4, 5]);
+		assert_eq!(&[1, 2, 3, 4, 5], list);
 	}
 }
