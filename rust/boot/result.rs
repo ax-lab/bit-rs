@@ -4,13 +4,17 @@ use super::*;
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Default error type for the library.
+#[derive(Clone)]
 pub struct Error {
-	msg: String,
+	msg: Arc<str>,
 }
 
 impl Error {
-	pub fn new<T: std::error::Error>(msg: T) -> Self {
-		Self { msg: format!("{msg}") }
+	#[inline(always)]
+	pub fn new<T: Display>(msg: T) -> Self {
+		Self {
+			msg: format!("{msg}").into(),
+		}
 	}
 }
 
@@ -31,3 +35,34 @@ impl<T: std::error::Error> From<T> for Error {
 		Error::new(value)
 	}
 }
+
+impl From<Error> for std::fmt::Error {
+	fn from(_: Error) -> Self {
+		Self
+	}
+}
+
+mod macros {
+	/// Return an error result with a formatted message.
+	#[macro_export]
+	macro_rules! err {
+		($msg:literal $($args:tt)*) => {{
+			let msg = format!($msg $($args)*);
+			err!(= msg)
+		}};
+
+		($expr:expr) => {{
+			err!(= $expr)
+		}};
+
+		(= $expr:expr) => {{
+			let file = file!();
+			let line = line!();
+			let expr = $expr;
+			let msg = format!("{expr} -- at {file}:{line}");
+			Error::new(msg)
+		}};
+	}
+}
+
+pub use macros::*;
