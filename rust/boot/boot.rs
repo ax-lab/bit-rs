@@ -14,6 +14,7 @@
 //! the C language, but not much else.
 
 use std::{
+	any::TypeId,
 	cell::UnsafeCell,
 	cmp::Ordering,
 	collections::HashMap,
@@ -32,8 +33,10 @@ mod arena;
 mod format;
 mod result;
 mod source;
+mod value;
 
 pub use arena::*;
 pub use format::*;
 pub use result::*;
 pub use source::*;
+pub use value::*;
