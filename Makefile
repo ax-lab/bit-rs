@@ -1,4 +1,4 @@
-.PHONY: all build test test-cargo test-bit test-release test-go
+.PHONY: all build test test-cargo test-bit test-release test-go clean
 
 all: build
 
@@ -36,3 +36,6 @@ test-release:
 
 test-go:
 	@ go test ./go/*
+
+clean:
+	@ cargo clean --manifest-path rust/Cargo.toml
