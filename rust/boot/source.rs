@@ -155,7 +155,7 @@ impl Debug for Source {
 		let name = self.name();
 		let name = if name == "" { "()" } else { name };
 		write!(f, "Source(`{name}` with ")?;
-		write_bytes(&mut f.write(), self.len())?;
+		write_bytes(&mut f.writer(), self.len())?;
 		write!(f, ")")
 	}
 }

@@ -5,6 +5,31 @@ pub const MB: usize = 1024 * KB;
 pub const GB: usize = 1024 * MB;
 pub const TB: usize = 1024 * GB;
 
+pub const INDENT: &'static str = "    ";
+pub const CR: u8 = '\r' as u8;
+pub const LF: u8 = '\n' as u8;
+
+/// Helper trait for objects that allow output.
+pub trait Writable {
+	fn write(&self, f: &mut Writer) -> Result<()>;
+
+	fn get_repr(&self) -> String {
+		let mut out = String::new();
+		let mut f = Writer::fmt(&mut out);
+		let _ = self.write(&mut f);
+		drop(f);
+		out
+	}
+
+	fn format(&self, f: &mut Formatter) -> std::fmt::Result {
+		let mut out = Writer::fmt(f);
+		match self.write(&mut out) {
+			Ok(_) => Ok(()),
+			Err(_) => Err(std::fmt::Error),
+		}
+	}
+}
+
 /// Adapter for using a [`std::fmt::Write`] with [`std::io::Write`].
 pub struct FormatWriter<'a> {
 	output: &'a mut dyn std::fmt::Write,
@@ -31,7 +56,7 @@ impl<'a> Write for FormatWriter<'a> {
 }
 
 pub trait ToFormatWriter: std::fmt::Write + Sized {
-	fn write(&mut self) -> FormatWriter {
+	fn writer(&mut self) -> FormatWriter {
 		FormatWriter::new(self)
 	}
 }
@@ -41,7 +66,7 @@ impl<T: std::fmt::Write + Sized> ToFormatWriter for T {}
 pub fn to_bytes(bytes: usize) -> String {
 	let mut output = String::new();
 	{
-		let mut output = output.write();
+		let mut output = output.writer();
 		let _ = write_bytes(&mut output, bytes);
 	}
 	output
@@ -60,57 +85,6 @@ pub fn write_bytes<T: Write>(out: &mut T, bytes: usize) -> Result<()> {
 		write!(out, "{:.2} GB", (bytes as f64) / (GB as f64))
 	}?;
 	Ok(())
-}
-
-const DEFAULT_INDENT: &'static str = "    ";
-const CR: u8 = '\r' as u8;
-const LF: u8 = '\n' as u8;
-
-pub trait Writable {
-	fn write(&self, f: &mut Writer) -> Result<()>;
-
-	fn write_fmt(&self, f: &mut Writer) -> Result<()>
-	where
-		Self: Display + Debug,
-	{
-		if f.is_debug() {
-			self.fmt_debug(f)
-		} else {
-			self.fmt_display(f)
-		}
-	}
-
-	fn fmt_display(&self, f: &mut Writer) -> Result<()>
-	where
-		Self: Display,
-	{
-		write!(f, "{self}")?;
-		Ok(())
-	}
-
-	fn fmt_debug(&self, f: &mut Writer) -> Result<()>
-	where
-		Self: Debug,
-	{
-		write!(f, "{self:?}")?;
-		Ok(())
-	}
-
-	fn get_repr(&self) -> String {
-		let mut out = String::new();
-		let mut f = Writer::fmt(&mut out);
-		let _ = self.write(&mut f);
-		drop(f);
-		out
-	}
-
-	fn format(&self, f: &mut Formatter) -> std::fmt::Result {
-		let mut out = Writer::fmt(f);
-		match self.write(&mut out) {
-			Ok(_) => Ok(()),
-			Err(_) => Err(std::fmt::Error),
-		}
-	}
 }
 
 #[derive(Clone)]
@@ -174,11 +148,11 @@ impl<'a> Writer<'a> {
 	}
 
 	pub fn indent(&mut self) {
-		self.indent_with(DEFAULT_INDENT)
+		self.indent_with(INDENT)
 	}
 
 	pub fn dedent(&mut self) {
-		self.dedent_with(DEFAULT_INDENT)
+		self.dedent_with(INDENT)
 	}
 
 	pub fn indent_with<T: AsRef<str>>(&mut self, prefix: T) {
@@ -198,7 +172,7 @@ impl<'a> Writer<'a> {
 	}
 
 	pub fn indented(&self) -> Self {
-		self.indented_with(DEFAULT_INDENT)
+		self.indented_with(INDENT)
 	}
 
 	pub fn is_debug(&self) -> bool {
@@ -278,6 +252,50 @@ impl<'a> Write for Writer<'a> {
 		output.flush()
 	}
 }
+
+mod macros {
+	#[macro_export]
+	macro_rules! writable {
+		($typ:ty) => {
+			impl $crate::Writable for $typ {
+				fn write(&self, f: &mut Writer) -> Result<()> {
+					$crate::WriteFormat::write_fmt(self, f)
+				}
+			}
+		};
+	}
+}
+
+pub use macros::*;
+
+pub trait WriteFormat: Display + Debug {
+	/// Write helper to invoke the debug [`Debug`] or [`Display`] implementation.
+	fn write_fmt(&self, f: &mut Writer) -> Result<()> {
+		if f.is_debug() {
+			self.write_debug(f)
+		} else {
+			self.write_display(f)
+		}
+	}
+}
+
+pub trait WriteDisplay: Display {
+	fn write_display(&self, f: &mut Writer) -> Result<()> {
+		write!(f, "{self}")?;
+		Ok(())
+	}
+}
+
+pub trait WriteDebug: Debug {
+	fn write_debug(&self, f: &mut Writer) -> Result<()> {
+		write!(f, "{self:?}")?;
+		Ok(())
+	}
+}
+
+impl<T: Display + Debug> WriteFormat for T {}
+impl<T: Display> WriteDisplay for T {}
+impl<T: Debug> WriteDebug for T {}
 
 #[cfg(test)]
 mod tests {

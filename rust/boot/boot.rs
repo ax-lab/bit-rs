@@ -23,8 +23,8 @@ use std::{
 	path::{Path, PathBuf},
 	ptr::NonNull,
 	sync::{
-		atomic::{AtomicPtr, AtomicUsize, Ordering as Order},
-		Arc, Once, RwLock,
+		atomic::{AtomicBool, AtomicPtr, AtomicUsize, Ordering as Order},
+		Arc, Mutex, Once, RwLock,
 	},
 };
 
