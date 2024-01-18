@@ -33,10 +33,12 @@ mod arena;
 mod format;
 mod result;
 mod source;
+mod table;
 mod value;
 
 pub use arena::*;
 pub use format::*;
 pub use result::*;
 pub use source::*;
+pub use table::*;
 pub use value::*;

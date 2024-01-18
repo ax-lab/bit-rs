@@ -4,7 +4,7 @@ pub const DEFAULT_TAB_SIZE: usize = 4;
 
 pub struct SourceMap {
 	base_dir: RwLock<PathBuf>,
-	sources: RwLock<HashMap<PathBuf, Result<Source>>>,
+	sources: Table<PathBuf, Result<Source>>,
 }
 
 impl SourceMap {
@@ -41,30 +41,23 @@ impl SourceMap {
 		let base_dir = self.base_dir.read().unwrap().clone();
 		let full_path = get_full_path(&base_dir, path)?;
 
-		let sources = self.sources.read().unwrap();
-		if let Some(src) = sources.get(&full_path) {
-			src.clone()
-		} else {
-			drop(sources);
+		let src = self.sources.get_or_init(&full_path, |full_path| {
+			let name = full_path.strip_prefix(&base_dir).unwrap_or(full_path).to_string_lossy();
+			let name = Box::leak(name.into());
+			let text = std::fs::read_to_string(&full_path).map_err(|err| err!("loading `{name}`: {err}"))?;
+			let text = Box::leak(text.as_str().into());
+			let path = Box::leak(full_path.as_path().into());
+			let data = SourceData {
+				name,
+				text,
+				path: Some(path),
+				tabs: 0.into(),
+			};
+			let data = Arena::get().store(data);
+			Ok(Source { data })
+		});
 
-			let mut sources = self.sources.write().unwrap();
-			let entry = sources.entry(full_path).or_insert_with_key(|full_path| {
-				let name = full_path.strip_prefix(&base_dir).unwrap_or(full_path).to_string_lossy();
-				let name = Box::leak(name.into());
-				let text = std::fs::read_to_string(&full_path).map_err(|err| err!("loading `{name}`: {err}"))?;
-				let text = Box::leak(text.as_str().into());
-				let path = Box::leak(full_path.as_path().into());
-				let data = SourceData {
-					name,
-					text,
-					path: Some(path),
-					tabs: 0.into(),
-				};
-				let data = Arena::get().store(data);
-				Ok(Source { data })
-			});
-			entry.clone()
-		}
+		src.clone()
 	}
 }
 
