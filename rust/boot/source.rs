@@ -101,7 +101,7 @@ impl Source {
 		self.data.path
 	}
 
-	pub fn tabs(&self) -> usize {
+	pub fn tab_size(&self) -> usize {
 		let tabs = self.data.tabs.load(Order::Relaxed);
 		if tabs == 0 {
 			DEFAULT_TAB_SIZE

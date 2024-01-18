@@ -30,15 +30,21 @@ use std::{
 };
 
 mod arena;
+mod chars;
+mod cursor;
 mod format;
 mod result;
 mod source;
+mod span;
 mod table;
 mod value;
 
 pub use arena::*;
+pub use chars::*;
+pub use cursor::*;
 pub use format::*;
 pub use result::*;
 pub use source::*;
+pub use span::*;
 pub use table::*;
 pub use value::*;
