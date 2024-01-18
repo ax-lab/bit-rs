@@ -21,6 +21,7 @@ use std::{
 	fmt::{Debug, Display, Formatter},
 	hash::Hash,
 	io::Write,
+	ops::RangeBounds,
 	path::{Path, PathBuf},
 	ptr::NonNull,
 	sync::{
@@ -33,6 +34,8 @@ mod arena;
 mod chars;
 mod cursor;
 mod format;
+mod iter;
+mod list;
 mod result;
 mod source;
 mod span;
@@ -43,6 +46,8 @@ pub use arena::*;
 pub use chars::*;
 pub use cursor::*;
 pub use format::*;
+pub use iter::*;
+pub use list::*;
 pub use result::*;
 pub use source::*;
 pub use span::*;
