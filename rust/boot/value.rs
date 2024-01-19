@@ -12,27 +12,41 @@ pub trait IsValue: 'static + Debug {
 
 #[derive(Copy, Clone)]
 pub struct Value {
-	data: *const dyn IsValue,
+	data: *const ValueData<()>,
+}
+
+struct ValueData<T> {
+	vtable: Option<&'static dyn IsValue>,
+	value: T,
 }
 
 impl Value {
 	#[inline(always)]
 	pub fn new<T: IsValue>(value: T) -> Value {
-		let data = Arena::get().store(value);
+		let data = ValueData { vtable: None, value };
+		let data = Arena::get().store(data);
+		data.vtable = Some(&data.value);
+
+		let data = (data as *const ValueData<T>).cast::<ValueData<()>>();
 		Value { data }
 	}
 
 	#[inline(always)]
 	pub fn get(&self) -> &'static dyn IsValue {
-		unsafe { &*self.data }
+		unsafe {
+			let data = &*self.data;
+			data.vtable.unwrap_unchecked()
+		}
 	}
 
 	#[inline(always)]
 	pub fn cast<T>(&self) -> Option<&'static T> {
 		let value = self.get();
 		if value.value_type() == TypeId::of::<T>() {
-			let data = unsafe { &*(self.data as *const T) };
-			Some(data)
+			unsafe {
+				let data = &*(self.data as *const ValueData<T>);
+				Some(&data.value)
+			}
 		} else {
 			None
 		}
@@ -85,14 +99,14 @@ mod tests {
 		let a = Value::new(TestValue(42));
 		let b = Value::new(TestValue(69));
 
-		assert_eq!("TestValue(42)", format!("{a:?}"));
-		assert_eq!("Value(69)", format!("{b}"));
+		assert_eq!(None, a.cast::<i32>());
+		assert_eq!(None, a.cast::<&str>());
 
 		assert_eq!(&TestValue(42), a.cast().unwrap());
 		assert_eq!(&TestValue(69), b.cast().unwrap());
 
-		assert_eq!(None, a.cast::<i32>());
-		assert_eq!(None, a.cast::<&str>());
+		assert_eq!("TestValue(42)", format!("{a:?}"));
+		assert_eq!("Value(69)", format!("{b}"));
 	}
 
 	#[derive(Debug, Eq, PartialEq)]
