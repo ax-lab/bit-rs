@@ -12,8 +12,6 @@ pub trait IsValue: 'static + Debug {
 		let _ = node;
 	}
 
-	fn unbind(&self) {}
-
 	fn as_writable(&self) -> Option<&dyn Writable> {
 		None
 	}
