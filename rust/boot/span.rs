@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Span {
-	src: Source,
+	source: Source,
 	sta: usize,
 	end: usize,
 }
@@ -10,12 +10,12 @@ pub struct Span {
 impl Span {
 	#[inline(always)]
 	pub(crate) fn new(src: Source, sta: usize, end: usize) -> Self {
-		Self { src, sta, end }
+		Self { source: src, sta, end }
 	}
 
 	#[inline(always)]
-	pub fn src(&self) -> Source {
-		self.src
+	pub fn source(&self) -> Source {
+		self.source
 	}
 
 	#[inline(always)]
@@ -35,19 +35,19 @@ impl Span {
 
 	#[inline(always)]
 	pub fn text(&self) -> &'static str {
-		let text = self.src().text();
+		let text = self.source().text();
 		&text[self.sta..self.end]
 	}
 
 	#[inline(always)]
 	pub fn is_empty(&self) -> bool {
-		self.sta == 0 && self.end == 0 && self.src == Source::empty()
+		self.sta == 0 && self.end == 0 && self.source == Source::empty()
 	}
 
 	#[inline(always)]
 	pub fn truncated(self, len: usize) -> Self {
 		assert!(len < self.len());
-		Span::new(self.src, self.sta, self.sta + len)
+		Span::new(self.source, self.sta, self.sta + len)
 	}
 
 	pub fn merge(a: Self, b: Self) -> Self {
@@ -58,10 +58,10 @@ impl Span {
 			return a;
 		}
 
-		assert_eq!(a.src, b.src);
+		assert_eq!(a.source, b.source);
 		let (a, b) = if a.sta <= b.sta { (a, b) } else { (b, a) };
 		Self {
-			src: a.src,
+			source: a.source,
 			sta: a.sta,
 			end: std::cmp::max(a.end, b.end),
 		}
@@ -72,7 +72,7 @@ impl Span {
 	}
 
 	pub fn location(&self) -> Cursor {
-		let mut cursor = Cursor::new(self.src());
+		let mut cursor = Cursor::new(self.source());
 		cursor.skip_len(self.sta);
 		cursor
 	}
@@ -92,7 +92,7 @@ impl Display for Span {
 
 impl Debug for Span {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		let src = self.src();
+		let src = self.source();
 		let sta = self.sta();
 		let len = self.len();
 		write!(f, "{src}:{sta}")?;

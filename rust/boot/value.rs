@@ -1,6 +1,19 @@
 use super::*;
 
 pub trait IsValue: 'static + Debug {
+	fn process(&self, msg: &mut Message) -> Result<()> {
+		match msg {
+			Message::SayHi(out) => *out = "oh, hi!",
+		}
+		Ok(())
+	}
+
+	fn bind(&self, node: Node) {
+		let _ = node;
+	}
+
+	fn unbind(&self) {}
+
 	fn as_writable(&self) -> Option<&dyn Writable> {
 		None
 	}
@@ -10,9 +23,34 @@ pub trait IsValue: 'static + Debug {
 	}
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Value {
-	data: *const ValueData<()>,
+	data: NonNull<ValueData<()>>,
+}
+
+pub(crate) struct ValueCell {
+	data: AtomicPtr<ValueData<()>>,
+}
+
+impl ValueCell {
+	#[inline(always)]
+	pub fn new(value: Value) -> Self {
+		Self {
+			data: AtomicPtr::new(value.data.as_ptr()),
+		}
+	}
+
+	#[inline(always)]
+	pub fn get(&self) -> Value {
+		let data = self.data.load(Order::Relaxed);
+		let data = unsafe { NonNull::new_unchecked(data) };
+		Value { data }
+	}
+
+	#[inline(always)]
+	pub fn set(&self, value: Value) {
+		self.data.store(value.data.as_ptr(), Order::Relaxed);
+	}
 }
 
 struct ValueData<T> {
@@ -24,17 +62,20 @@ impl Value {
 	#[inline(always)]
 	pub fn new<T: IsValue>(value: T) -> Value {
 		let data = ValueData { vtable: None, value };
-		let data = Arena::get().store(data);
-		data.vtable = Some(&data.value);
 
-		let data = (data as *const ValueData<T>).cast::<ValueData<()>>();
-		Value { data }
+		let mut data = Arena::get().alloc(data);
+		unsafe {
+			let data = data.as_mut();
+			data.vtable = Some(&data.value);
+		}
+
+		Value { data: data.cast() }
 	}
 
 	#[inline(always)]
 	pub fn get(&self) -> &'static dyn IsValue {
 		unsafe {
-			let data = &*self.data;
+			let data = self.data.as_ref();
 			data.vtable.unwrap_unchecked()
 		}
 	}
@@ -44,7 +85,7 @@ impl Value {
 		let value = self.get();
 		if value.value_type() == TypeId::of::<T>() {
 			unsafe {
-				let data = &*(self.data as *const ValueData<T>);
+				let data = self.data.cast::<ValueData<T>>().as_ref();
 				Some(&data.value)
 			}
 		} else {
