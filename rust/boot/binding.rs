@@ -35,6 +35,10 @@ impl Bind {
 				.collect::<Vec<Node>>()
 		};
 
+		for it in nodes.iter() {
+			it.set_done(true);
+		}
+
 		self.eval.execute(nodes)?;
 
 		Ok(())

@@ -32,10 +32,10 @@ impl Node {
 	#[inline(always)]
 	pub fn set_done(&self, done: bool) {
 		let data = self.data();
-		if done {
+		if !done {
 			if data
 				.done
-				.compare_exchange(false, true, Order::Relaxed, Order::Relaxed)
+				.compare_exchange(true, false, Order::Relaxed, Order::Relaxed)
 				.is_ok()
 			{
 				let value = data.value.get();
