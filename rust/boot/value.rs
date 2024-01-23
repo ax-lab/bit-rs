@@ -1,11 +1,13 @@
 use super::*;
 
 pub trait IsValue: 'static + Debug {
-	fn process(&self, msg: &mut Message) -> Result<()> {
-		match msg {
-			Message::SayHi(out) => *out = "oh, hi!",
-		}
+	fn process(&self, msg: Message) -> Result<()> {
+		let _ = msg;
 		Ok(())
+	}
+
+	fn say_id(&self, label: &str) {
+		println!("{label} {} at {:?}", std::any::type_name::<Self>(), self as *const Self);
 	}
 
 	fn bind(&self, node: Node) {
@@ -21,39 +23,15 @@ pub trait IsValue: 'static + Debug {
 	}
 }
 
+impl<T: IsValue> From<T> for Value {
+	fn from(value: T) -> Self {
+		Value::new(value)
+	}
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Value {
 	data: NonNull<ValueData<()>>,
-}
-
-pub(crate) struct ValueCell {
-	data: AtomicPtr<ValueData<()>>,
-}
-
-impl ValueCell {
-	#[inline(always)]
-	pub fn new(value: Value) -> Self {
-		Self {
-			data: AtomicPtr::new(value.data.as_ptr()),
-		}
-	}
-
-	#[inline(always)]
-	pub fn get(&self) -> Value {
-		let data = self.data.load(Order::Relaxed);
-		let data = unsafe { NonNull::new_unchecked(data) };
-		Value { data }
-	}
-
-	#[inline(always)]
-	pub fn set(&self, value: Value) {
-		self.data.store(value.data.as_ptr(), Order::Relaxed);
-	}
-}
-
-struct ValueData<T> {
-	vtable: Option<&'static dyn IsValue>,
-	value: T,
 }
 
 impl Value {
@@ -67,7 +45,8 @@ impl Value {
 			data.vtable = Some(&data.value);
 		}
 
-		Value { data: data.cast() }
+		let value = Value { data: data.cast() };
+		value
 	}
 
 	#[inline(always)]
@@ -89,6 +68,10 @@ impl Value {
 		} else {
 			None
 		}
+	}
+
+	pub fn process(&self, msg: Message) -> Result<()> {
+		self.get().process(msg)
 	}
 }
 
@@ -127,6 +110,38 @@ impl Writable for Value {
 			value.write_debug(f)
 		}
 	}
+}
+
+pub(crate) struct ValueCell {
+	data: AtomicPtr<ValueData<()>>,
+}
+
+impl ValueCell {
+	#[inline(always)]
+	pub fn new<T: Into<Value>>(value: T) -> Self {
+		let value = value.into();
+		Self {
+			data: AtomicPtr::new(value.data.as_ptr()),
+		}
+	}
+
+	#[inline(always)]
+	pub fn get(&self) -> Value {
+		let data = self.data.load(Order::Relaxed);
+		let data = unsafe { NonNull::new_unchecked(data) };
+		Value { data }
+	}
+
+	#[inline(always)]
+	pub fn set(&self, value: Value) {
+		self.data.store(value.data.as_ptr(), Order::Relaxed);
+	}
+}
+
+#[repr(C)]
+struct ValueData<T> {
+	vtable: Option<&'static dyn IsValue>,
+	value: T,
 }
 
 #[cfg(test)]

@@ -21,10 +21,7 @@ fn run() -> Result<()> {
 	let mut input = input.into_iter().collect::<Vec<_>>();
 	input.sort();
 
-	for it in input {
-		println!(">>> {}\n", it.name());
-		println!("\n{}\n", it.text());
-	}
+	execute(&input)?;
 
 	Ok(())
 }

@@ -33,6 +33,7 @@ use std::{
 mod arena;
 mod binding;
 mod chars;
+mod core;
 mod cursor;
 mod eval;
 mod format;
@@ -50,6 +51,7 @@ mod value;
 pub use arena::*;
 pub use binding::*;
 pub use chars::*;
+pub use core::*;
 pub use cursor::*;
 pub use eval::*;
 pub use format::*;
@@ -65,8 +67,9 @@ pub use value::*;
 
 use heap::*;
 
-pub enum Message {
-	SayHi(&'static str),
+pub enum Message<'a> {
+	Dump(Node),
+	AreYouOkay(&'a mut bool),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -86,4 +89,19 @@ pub enum Precedence {
 	BlockEval,
 	Output,
 	Last,
+}
+
+pub fn execute(input: &[Source]) -> Result<()> {
+	let program = Node::new(Program, Span::empty());
+	for it in input.iter().copied() {
+		let span = it.span();
+		let node = Node::new(it, span);
+		program.push_node(node);
+	}
+
+	let mut ans = false;
+	program.send(Message::AreYouOkay(&mut ans))?;
+	println!("Is program okay? {ans}");
+
+	Ok(())
 }

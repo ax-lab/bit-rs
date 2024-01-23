@@ -15,7 +15,8 @@ struct NodeData {
 }
 
 impl Node {
-	pub fn new(value: Value, span: Span) -> Self {
+	pub fn new<T: Into<Value>>(value: T, span: Span) -> Self {
+		let value = value.into();
 		let data = Arena::get().alloc(NodeData {
 			span,
 			done: false.into(),
@@ -27,6 +28,10 @@ impl Node {
 		let node = Self { data };
 		value.get().bind(node);
 		node
+	}
+
+	pub fn send(&self, msg: Message) -> Result<()> {
+		self.value().get().process(msg)
 	}
 
 	#[inline(always)]

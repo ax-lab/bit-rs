@@ -8,6 +8,10 @@ pub struct Span {
 }
 
 impl Span {
+	pub fn empty() -> Self {
+		Self::default()
+	}
+
 	#[inline(always)]
 	pub(crate) fn new(src: Source, sta: usize, end: usize) -> Self {
 		Self { source: src, sta, end }

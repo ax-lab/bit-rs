@@ -110,6 +110,10 @@ impl Source {
 		}
 	}
 
+	pub fn span(self) -> Span {
+		Span::new(self, 0, self.len())
+	}
+
 	fn as_ptr(&self) -> *const SourceData {
 		self.data
 	}
