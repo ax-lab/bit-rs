@@ -1,9 +1,9 @@
 use super::*;
 
 pub trait IsValue: 'static + Debug {
-	fn process(&self, msg: Message) -> Result<()> {
+	fn process(&self, msg: Message) -> Result<bool> {
 		let _ = msg;
-		Ok(())
+		Ok(false)
 	}
 
 	fn say_id(&self, label: &str) {
@@ -70,7 +70,7 @@ impl Value {
 		}
 	}
 
-	pub fn process(&self, msg: Message) -> Result<()> {
+	pub fn process(&self, msg: Message) -> Result<bool> {
 		self.get().process(msg)
 	}
 }

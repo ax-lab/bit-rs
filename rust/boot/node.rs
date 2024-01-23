@@ -30,7 +30,7 @@ impl Node {
 		node
 	}
 
-	pub fn send(&self, msg: Message) -> Result<()> {
+	pub fn send(&self, msg: Message) -> Result<bool> {
 		self.value().get().process(msg)
 	}
 
@@ -255,5 +255,49 @@ impl NodeCell {
 			std::ptr::null_mut()
 		};
 		self.data.store(ptr, Order::Relaxed);
+	}
+}
+
+impl Node {
+	pub fn write_pos(&self, f: &mut Writer, label: &str) -> Result<()> {
+		let span = self.span();
+		if !span.is_empty() {
+			write!(f, "{label}{span}")?;
+			if let Some(text) = span.display_text() {
+				write!(f, "    # {text}")?;
+			}
+		}
+		Ok(())
+	}
+
+	pub fn write_with_pos(&self, f: &mut Writer) -> Result<()> {
+		self.write(f)?;
+		self.write_pos(f, "\n… at ")?;
+		Ok(())
+	}
+}
+
+impl Writable for Node {
+	fn write(&self, f: &mut Writer) -> Result<()> {
+		let value = self.value();
+		if value.process(Message::Output(*self, f))? {
+			return Ok(());
+		}
+
+		value.write(f)?;
+		let nodes = self.nodes();
+		if nodes.len() > 0 {
+			let mut f = f.indented();
+			write!(f, " {{")?;
+			for (n, it) in nodes.iter().enumerate() {
+				write!(f, "\n")?;
+				write!(f, "[{n}] ")?;
+				it.write_with_pos(&mut f)?;
+			}
+			f.dedent();
+			write!(f, "\n}}")?;
+		}
+
+		Ok(())
 	}
 }

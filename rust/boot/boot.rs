@@ -15,6 +15,7 @@
 
 use std::{
 	any::TypeId,
+	borrow::Cow,
 	cell::UnsafeCell,
 	cmp::Ordering,
 	collections::{HashMap, VecDeque},
@@ -67,9 +68,9 @@ pub use value::*;
 
 use heap::*;
 
-pub enum Message<'a> {
-	Dump(Node),
-	AreYouOkay(&'a mut bool),
+pub enum Message<'a, 'b> {
+	None,
+	Output(Node, &'a mut Writer<'b>),
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -99,9 +100,10 @@ pub fn execute(input: &[Source]) -> Result<()> {
 		program.push_node(node);
 	}
 
-	let mut ans = false;
-	program.send(Message::AreYouOkay(&mut ans))?;
-	println!("Is program okay? {ans}");
+	let mut out = Writer::stdout();
+	write!(out, "\n===== PROGRAM =====\n\n")?;
+	program.write(&mut out)?;
+	write!(out, "\n\n")?;
 
 	Ok(())
 }
