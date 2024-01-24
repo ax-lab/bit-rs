@@ -13,7 +13,7 @@ impl IsValue for Program {
 					write!(out, "Program:\n")?;
 
 					let out = &mut out.indented();
-					for it in node.nodes() {
+					for it in node.children() {
 						write!(out, "\n")?;
 						it.write_with_pos(out)?;
 					}
@@ -25,5 +25,9 @@ impl IsValue for Program {
 			_ => return Ok(false),
 		};
 		Ok(true)
+	}
+
+	fn output_code(&self, node: Node) -> Result<Code> {
+		Code::sequence(node.children().iter().copied())
 	}
 }

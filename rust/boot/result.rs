@@ -59,7 +59,7 @@ mod macros {
 			let file = file!();
 			let line = line!();
 			let expr = $expr;
-			let msg = format!("{expr} -- at {file}:{line}");
+			let msg = format!("{expr}\n-- from {file}:{line}");
 			Error::new(msg)
 		}};
 	}

@@ -34,6 +34,7 @@ use std::{
 mod arena;
 mod binding;
 mod chars;
+mod code;
 mod core;
 mod cursor;
 mod eval;
@@ -52,6 +53,7 @@ mod value;
 pub use arena::*;
 pub use binding::*;
 pub use chars::*;
+pub use code::*;
 pub use core::*;
 pub use cursor::*;
 pub use eval::*;
@@ -92,7 +94,12 @@ pub enum Precedence {
 	Last,
 }
 
-pub fn execute(input: &[Source]) -> Result<()> {
+#[derive(Default)]
+pub struct Options {
+	pub show_output: bool,
+}
+
+pub fn execute(input: &[Source], options: Options) -> Result<()> {
 	let program = Node::new(Program, Span::empty());
 	for it in input.iter().copied() {
 		let span = it.span();
@@ -100,10 +107,15 @@ pub fn execute(input: &[Source]) -> Result<()> {
 		program.push_node(node);
 	}
 
-	let mut out = Writer::stdout();
-	write!(out, "\n===== PROGRAM =====\n\n")?;
-	program.write(&mut out)?;
-	write!(out, "\n\n")?;
+	if options.show_output {
+		let mut out = Writer::stdout();
+		write!(out, "\n===== PROGRAM =====\n\n")?;
+		program.write(&mut out)?;
+		write!(out, "\n\n")?;
+	}
+
+	let output = program.compile()?;
+	println!("\n{output:#?}\n");
 
 	Ok(())
 }

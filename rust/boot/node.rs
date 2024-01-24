@@ -90,19 +90,19 @@ impl Node {
 	}
 
 	#[inline(always)]
-	pub fn nodes(&self) -> &'static [Node] {
+	pub fn children(&self) -> &'static [Node] {
 		let data = self.data();
 		data.children.items()
 	}
 
 	#[inline(always)]
 	pub fn len(&self) -> usize {
-		self.nodes().len()
+		self.children().len()
 	}
 
 	#[inline(always)]
 	pub fn node(&self, index: usize) -> Option<Node> {
-		self.nodes().get(index).copied()
+		self.children().get(index).copied()
 	}
 
 	#[inline(always)]
@@ -112,7 +112,7 @@ impl Node {
 
 	#[inline(always)]
 	pub fn last(&self) -> Option<Node> {
-		self.nodes().last().copied()
+		self.children().last().copied()
 	}
 
 	#[inline(always)]
@@ -285,7 +285,7 @@ impl Writable for Node {
 		}
 
 		value.write(f)?;
-		let nodes = self.nodes();
+		let nodes = self.children();
 		if nodes.len() > 0 {
 			let mut f = f.indented();
 			write!(f, " {{")?;
@@ -299,5 +299,11 @@ impl Writable for Node {
 		}
 
 		Ok(())
+	}
+}
+
+impl From<Node> for Span {
+	fn from(value: Node) -> Self {
+		value.span()
 	}
 }

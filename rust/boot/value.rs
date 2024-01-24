@@ -6,8 +6,12 @@ pub trait IsValue: 'static + Debug {
 		Ok(false)
 	}
 
-	fn say_id(&self, label: &str) {
-		println!("{label} {} at {:?}", std::any::type_name::<Self>(), self as *const Self);
+	fn value_type(&self) -> TypeId {
+		TypeId::of::<Self>()
+	}
+
+	fn describe(&self, out: &mut Writer) -> Result<()> {
+		self.write_debug(out)
 	}
 
 	fn bind(&self, node: Node) {
@@ -18,8 +22,16 @@ pub trait IsValue: 'static + Debug {
 		None
 	}
 
-	fn value_type(&self) -> TypeId {
-		TypeId::of::<Self>()
+	fn output_code(&self, node: Node) -> Result<Code> {
+		let mut msg = String::new();
+		{
+			let mut out = Writer::new(msg.writer());
+			let _ = write!(out, "cannot output code for node `");
+			let _ = self.describe(&mut out);
+			let _ = node.write_pos(&mut out, " at ");
+			let _ = write!(out, "`");
+		}
+		Err(err!(msg))
 	}
 }
 

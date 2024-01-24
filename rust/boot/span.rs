@@ -54,6 +54,21 @@ impl Span {
 		Span::new(self.source, self.sta, self.sta + len)
 	}
 
+	pub fn range<T: IntoIterator<Item = U>, U: Into<Span>>(elems: T) -> Span {
+		let mut iter = elems.into_iter();
+		if let Some(first) = iter.next() {
+			let first = first.into();
+			if let Some(last) = iter.last() {
+				let last = last.into();
+				Self::merge(first, last)
+			} else {
+				first
+			}
+		} else {
+			Span::empty()
+		}
+	}
+
 	pub fn merge(a: Self, b: Self) -> Self {
 		if a.is_empty() {
 			return b;

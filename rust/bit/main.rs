@@ -21,7 +21,12 @@ fn run() -> Result<()> {
 	let mut input = input.into_iter().collect::<Vec<_>>();
 	input.sort();
 
-	execute(&input)?;
+	let options = Options {
+		show_output: true,
+		..Default::default()
+	};
+
+	execute(&input, options)?;
 
 	Ok(())
 }
