@@ -17,7 +17,7 @@ impl Code {
 		let code: Result<Vec<_>> = code.into_iter().map(|x| x.compile()).collect();
 		let code = code?;
 		let code = Arena::get().slice(code);
-		let span = Span::range(code.iter().copied());
+		let span = Span::range(code.iter());
 		let code = Code {
 			expr: Expr::Sequence(code),
 			span,
@@ -27,24 +27,39 @@ impl Code {
 }
 
 pub trait Compilable {
-	fn compile(self) -> Result<Code>;
+	fn compile(&self) -> Result<Code>;
 }
 
 impl<T: Compilable> Compilable for Result<T> {
-	fn compile(self) -> Result<Code> {
-		self.and_then(|x| x.compile())
+	fn compile(&self) -> Result<Code> {
+		match self {
+			Ok(x) => x.compile(),
+			Err(err) => Err(err.clone()),
+		}
 	}
 }
 
 impl Compilable for Node {
-	fn compile(self) -> Result<Code> {
+	fn compile(&self) -> Result<Code> {
 		let value = self.value().get();
-		value.output_code(self)
+		value.output_code(*self)
 	}
 }
 
 impl From<Code> for Span {
 	fn from(value: Code) -> Self {
 		value.span
+	}
+}
+
+impl From<&Code> for Span {
+	fn from(value: &Code) -> Self {
+		value.span
+	}
+}
+
+impl<T: Compilable> Compilable for &T {
+	fn compile(&self) -> Result<Code> {
+		(*self).compile()
 	}
 }

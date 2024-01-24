@@ -28,6 +28,6 @@ impl IsValue for Program {
 	}
 
 	fn output_code(&self, node: Node) -> Result<Code> {
-		Code::sequence(node.children().iter().copied())
+		Code::sequence(node.children())
 	}
 }

@@ -307,3 +307,9 @@ impl From<Node> for Span {
 		value.span()
 	}
 }
+
+impl From<&Node> for Span {
+	fn from(value: &Node) -> Self {
+		value.span()
+	}
+}
