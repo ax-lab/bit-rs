@@ -12,6 +12,13 @@ impl Queue {
 		QUEUE.get()
 	}
 
+	pub fn process() -> Result<()> {
+		let queue = Self::get();
+		while queue.process_next()? {}
+
+		Ok(())
+	}
+
 	pub fn process_next(&self) -> Result<bool> {
 		let mut pending = self.pending_reindex.lock().unwrap();
 		for it in pending.drain(..) {

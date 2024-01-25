@@ -28,6 +28,14 @@ pub trait Writable {
 			Err(_) => Err(std::fmt::Error),
 		}
 	}
+
+	fn format_debug(&self, f: &mut Formatter) -> std::fmt::Result {
+		let mut out = Writer::fmt(f).debug();
+		match self.write(&mut out) {
+			Ok(_) => Ok(()),
+			Err(_) => Err(std::fmt::Error),
+		}
+	}
 }
 
 /// Adapter for using a [`std::fmt::Write`] with [`std::io::Write`].
@@ -260,6 +268,23 @@ mod macros {
 			impl $crate::Writable for $typ {
 				fn write(&self, f: &mut Writer) -> Result<()> {
 					$crate::WriteFormat::write_fmt(self, f)
+				}
+			}
+		};
+	}
+
+	#[macro_export]
+	macro_rules! formatted {
+		($typ:ty) => {
+			impl std::fmt::Display for $typ {
+				fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+					$crate::Writable::format(self, f)
+				}
+			}
+
+			impl std::fmt::Debug for $typ {
+				fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+					$crate::Writable::format_debug(self, f)
 				}
 			}
 		};

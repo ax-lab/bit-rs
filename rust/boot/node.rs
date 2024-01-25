@@ -82,6 +82,11 @@ impl Node {
 	}
 
 	#[inline(always)]
+	pub fn cast<T: IsValue>(&self) -> Option<&'static T> {
+		self.value().cast()
+	}
+
+	#[inline(always)]
 	pub fn set_value(&self, value: Value) {
 		let data = self.data();
 		data.done.store(false, Order::Relaxed);
@@ -301,6 +306,8 @@ impl Writable for Node {
 		Ok(())
 	}
 }
+
+formatted!(Node);
 
 impl From<Node> for Span {
 	fn from(value: Node) -> Self {

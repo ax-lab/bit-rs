@@ -78,6 +78,7 @@ pub enum Message<'a, 'b> {
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Precedence {
 	First,
+	Source,
 	LineSplit,
 	Indent,
 	LetDecl,
@@ -106,6 +107,8 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 		let node = Node::new(it, span);
 		program.push_node(node);
 	}
+
+	Queue::process()?;
 
 	if options.show_output {
 		let mut out = Writer::stdout();

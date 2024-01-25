@@ -10,6 +10,8 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+	SOURCES.set_init(PrintSource);
+
 	let source = SourceMap::new(".")?;
 
 	let mut input = HashSet::new();

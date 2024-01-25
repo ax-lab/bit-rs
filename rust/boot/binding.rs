@@ -1,7 +1,63 @@
 use super::*;
 
 pub struct Bindings {
+	bindings: Init<BindTable>,
+}
+
+#[derive(Default)]
+struct BindTable {
 	by_source: Table<Source, BindingMap>,
+	globals: RwLock<Vec<&'static dyn Eval>>,
+}
+
+impl Bindings {
+	pub const fn new() -> Self {
+		Self {
+			bindings: Init::default(),
+		}
+	}
+
+	pub fn add_node(&self, node: Node) {
+		let map = self.get_by_source(node.source());
+		map.add_node(node);
+		map.queue_reindex();
+	}
+
+	pub fn set_init<T: Eval>(&self, eval: T) {
+		let bindings = self.bindings.get();
+		let eval = Arena::get().store(eval);
+		let mut globals = bindings.globals.write().unwrap();
+		globals.push(eval);
+	}
+
+	pub fn set_span<T: Eval>(&self, span: Span, eval: T) {
+		let map = self.get_by_source(span.source());
+		let eval = Arena::get().store(eval);
+		let bind = Bind {
+			eval,
+			span,
+			parent: map,
+		};
+		map.add_bind(bind);
+		map.queue_reindex();
+	}
+
+	fn get_by_source(&self, src: Source) -> &'static BindingMap {
+		let bindings = self.bindings.get();
+		bindings.by_source.get_or_init_ref(&src, |arena, src| {
+			let map = arena.store(BindingMap::default());
+			let globals = bindings.globals.read().unwrap();
+			let span = src.span();
+			for &eval in globals.iter() {
+				map.add_bind(Bind {
+					eval,
+					span,
+					parent: map,
+				});
+			}
+			map
+		})
+	}
 }
 
 #[derive(Copy, Clone)]
@@ -34,10 +90,6 @@ impl Bind {
 				.filter(|x| !x.done())
 				.collect::<Vec<Node>>()
 		};
-
-		for it in nodes.iter() {
-			it.set_done(true);
-		}
 
 		self.eval.execute(nodes)?;
 
@@ -80,26 +132,6 @@ impl PartialOrd for Bind {
 impl Bind {
 	pub fn overlaps(&self, sta: usize, end: usize) -> bool {
 		self.span.sta() < end && sta < self.span.end()
-	}
-}
-
-impl Bindings {
-	pub fn add_node(&self, node: Node) {
-		let map = self.by_source.get(&node.source());
-		map.add_node(node);
-		map.queue_reindex();
-	}
-
-	pub fn set_span<T: Eval>(&self, span: Span, eval: T) {
-		let map = self.by_source.get(&span.source());
-		let eval = Arena::get().store(eval);
-		let bind = Bind {
-			eval,
-			span,
-			parent: map,
-		};
-		map.add_bind(bind);
-		map.queue_reindex();
 	}
 }
 
