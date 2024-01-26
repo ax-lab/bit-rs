@@ -70,10 +70,15 @@ pub(crate) struct Bind {
 impl Bind {
 	pub fn execute(self) -> Result<()> {
 		let parent = self.parent;
-		let (ref mut nodes, ref mut sorted) = *parent.nodes.lock().unwrap();
-		if !*sorted {
+		let new_nodes = {
+			let mut nodes = parent.new_nodes.lock().unwrap();
+			std::mem::take(&mut *nodes)
+		};
+
+		let mut nodes = parent.nodes.lock().unwrap();
+		if new_nodes.len() > 0 {
+			nodes.extend(new_nodes);
 			nodes.sort_by_key(|x| x.span());
-			*sorted = true;
 		}
 
 		let sta = self.span.sta();
@@ -148,7 +153,8 @@ impl Debug for Bind {
 }
 
 pub(crate) struct BindingMap {
-	nodes: Mutex<(Vec<Node>, bool)>,
+	nodes: Mutex<Vec<Node>>,
+	new_nodes: Mutex<Vec<Node>>,
 	pending: Mutex<Vec<Bind>>,
 	complete: Mutex<Vec<Bind>>,
 	pending_reindex: AtomicBool,
@@ -196,10 +202,8 @@ impl BindingMap {
 	}
 
 	fn add_node(&self, node: Node) {
-		let mut nodes = self.nodes.lock().unwrap();
-		let (ref mut nodes, ref mut sorted) = *nodes;
+		let mut nodes = self.new_nodes.lock().unwrap();
 		nodes.push(node);
-		*sorted = false;
 
 		let span = node.span();
 		self.changed_sta.fetch_min(span.sta(), Order::Relaxed);
@@ -226,6 +230,7 @@ impl Default for BindingMap {
 	fn default() -> Self {
 		Self {
 			nodes: Default::default(),
+			new_nodes: Default::default(),
 			pending: Default::default(),
 			complete: Default::default(),
 			pending_reindex: false.into(),
