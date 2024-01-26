@@ -12,7 +12,10 @@ struct NodeData {
 	parent: NodeCell,
 	index: AtomicUsize,
 	children: List<Node>,
+	next_pending: AtomicPtr<NodeData>,
 }
+
+static PENDING_NODES: AtomicPtr<NodeData> = AtomicPtr::new(std::ptr::null_mut());
 
 impl Node {
 	pub fn new<T: Into<Value>>(value: T, span: Span) -> Self {
@@ -24,10 +27,39 @@ impl Node {
 			parent: Default::default(),
 			index: Default::default(),
 			children: Default::default(),
+			next_pending: Default::default(),
 		});
+
 		let node = Self { data };
+
+		loop {
+			let next = PENDING_NODES.load(Order::Relaxed);
+			node.data().next_pending.store(next, Order::Relaxed);
+			if PENDING_NODES
+				.compare_exchange_weak(next, data.as_ptr(), Order::Relaxed, Order::Relaxed)
+				.is_ok()
+			{
+				break;
+			}
+		}
+
 		value.get().bind(node);
 		node
+	}
+
+	pub fn check_pending() -> Result<()> {
+		let mut pending = PENDING_NODES
+			.fetch_update(Order::Release, Order::Acquire, |_| Some(std::ptr::null_mut()))
+			.unwrap();
+		while let Some(data) = NonNull::new(pending) {
+			let node = Node { data };
+			if !node.done() {
+				return Err(err!("node has not been solved: {}", node.display_message()));
+			}
+
+			pending = node.data().next_pending.load(Order::Relaxed);
+		}
+		Ok(())
 	}
 
 	pub fn send(&self, msg: Message) -> Result<bool> {
@@ -191,6 +223,16 @@ impl Node {
 		} else {
 			false
 		}
+	}
+
+	pub fn display_message(&self) -> String {
+		let mut out = String::new();
+		{
+			let mut out = Writer::fmt(&mut out);
+			let _ = self.value().get().describe(&mut out);
+			let _ = self.write_pos(&mut out, " at ");
+		}
+		out
 	}
 
 	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> &'static [Node] {

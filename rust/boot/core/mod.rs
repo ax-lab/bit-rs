@@ -25,7 +25,7 @@ impl Eval for PrintSource {
 		Precedence::Source
 	}
 
-	fn execute(&self, nodes: Vec<Node>) -> Result<()> {
+	fn execute(&self, nodes: &[Node]) -> Result<()> {
 		for it in nodes {
 			if let Some(src) = it.cast::<Source>() {
 				it.set_done(true);

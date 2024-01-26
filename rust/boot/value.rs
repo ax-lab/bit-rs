@@ -28,7 +28,6 @@ pub trait IsValue: 'static + Debug {
 			let mut out = Writer::new(msg.writer());
 			let _ = write!(out, "cannot generate code for ");
 			let _ = self.describe(&mut out);
-			let _ = write!(out, "");
 			let _ = node.write_pos(&mut out, " at ");
 		}
 		Err(err!(msg))

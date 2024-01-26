@@ -110,6 +110,9 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 
 	Queue::process()?;
 
+	program.set_done(true);
+	Node::check_pending()?;
+
 	if options.show_output {
 		let mut out = Writer::stdout();
 		write!(out, "\n===== PROGRAM =====\n\n")?;

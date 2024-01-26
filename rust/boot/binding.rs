@@ -70,28 +70,32 @@ pub(crate) struct Bind {
 impl Bind {
 	pub fn execute(self) -> Result<()> {
 		let parent = self.parent;
-		let nodes = {
-			let (ref mut nodes, ref mut sorted) = *parent.nodes.lock().unwrap();
-			if !*sorted {
-				nodes.sort_by_key(|x| x.span());
-				*sorted = true;
+		let (ref mut nodes, ref mut sorted) = *parent.nodes.lock().unwrap();
+		if !*sorted {
+			nodes.sort_by_key(|x| x.span());
+			*sorted = true;
+		}
+
+		let sta = self.span.sta();
+		let end = self.span.end();
+
+		let sta_index = nodes.partition_point(|x| x.offset() < sta);
+		let end_index = nodes[sta_index..].partition_point(|x| x.offset() < end) + sta_index;
+
+		self.parent.add_done(self);
+
+		self.eval.execute(&nodes[sta_index..end_index])?;
+
+		let mut cur = sta_index;
+		for index in sta_index..end_index {
+			let node = nodes[index];
+			if !node.done() {
+				nodes[cur] = node;
+				cur += 1;
 			}
+		}
 
-			let sta = self.span.sta();
-			let end = self.span.end();
-
-			let sta_index = nodes.partition_point(|x| x.offset() < sta);
-			let end_index = nodes[sta_index..].partition_point(|x| x.offset() < end) + sta_index;
-
-			self.parent.add_done(self);
-
-			nodes
-				.drain(sta_index..end_index)
-				.filter(|x| !x.done())
-				.collect::<Vec<Node>>()
-		};
-
-		self.eval.execute(nodes)?;
+		nodes.truncate(cur);
 
 		Ok(())
 	}
@@ -135,6 +139,14 @@ impl Bind {
 	}
 }
 
+impl Debug for Bind {
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		let span = self.span;
+		let eval = self.eval;
+		write!(f, "Bind({eval:?}) @ {span}")
+	}
+}
+
 pub(crate) struct BindingMap {
 	nodes: Mutex<(Vec<Node>, bool)>,
 	pending: Mutex<Vec<Bind>>,
@@ -150,7 +162,7 @@ impl BindingMap {
 		let mut pending = self.pending.lock().unwrap();
 
 		let changed_sta = self.changed_sta.load(Order::Relaxed);
-		let changed_end = self.changed_sta.load(Order::Relaxed);
+		let changed_end = self.changed_end.load(Order::Relaxed);
 
 		self.changed_sta.store(usize::MAX, Order::Relaxed);
 		self.changed_end.store(0, Order::Relaxed);
