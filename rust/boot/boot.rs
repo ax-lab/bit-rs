@@ -47,6 +47,7 @@ mod queue;
 mod result;
 mod source;
 mod span;
+mod symbol;
 mod table;
 mod value;
 
@@ -65,6 +66,7 @@ pub use queue::*;
 pub use result::*;
 pub use source::*;
 pub use span::*;
+pub use symbol::*;
 pub use table::*;
 pub use value::*;
 
