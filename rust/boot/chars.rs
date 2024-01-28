@@ -22,3 +22,39 @@ pub fn is_space(char: char) -> bool {
 		_ => false,
 	}
 }
+
+#[inline(always)]
+pub fn is_ident(c: char, mid: bool) -> bool {
+	match c {
+		'a'..='z' => true,
+		'A'..='Z' => true,
+		'_' => true,
+		'0'..='9' => mid,
+		_ => false,
+	}
+}
+
+#[inline(always)]
+pub fn is_digit(c: char) -> bool {
+	c >= '0' && c <= '9'
+}
+
+#[inline(always)]
+pub fn count_alpha_num(text: &str) -> usize {
+	for (pos, char) in text.char_indices() {
+		if !is_ident(char, true) {
+			return pos;
+		}
+	}
+	text.len()
+}
+
+#[inline(always)]
+pub fn count_digits(text: &str) -> usize {
+	for (pos, char) in text.char_indices() {
+		if !is_digit(char) && char != '_' {
+			return pos;
+		}
+	}
+	text.len()
+}

@@ -73,18 +73,22 @@ impl Cursor {
 		}
 	}
 
-	pub fn text_context(&self) -> &'static str {
-		const MAX_CHARS: usize = 10;
+	pub fn display_chars(&self, max_chars: usize) -> Span {
 		let text = self.text();
 		let index = text.find(|chr| is_space(chr) || chr == '\r' || chr == '\n');
 		let index = index.unwrap_or(text.len());
 		let text = &text[..index];
 		let index = text
 			.char_indices()
-			.nth(MAX_CHARS + 1)
+			.nth(max_chars + 1)
 			.map(|(index, _)| index)
 			.unwrap_or(text.len());
-		&text[..index]
+		self.span(index)
+	}
+
+	pub fn text_context(&self) -> &'static str {
+		const MAX_CHARS: usize = 10;
+		self.display_chars(MAX_CHARS).text()
 	}
 
 	fn advance(&mut self, char: char) {

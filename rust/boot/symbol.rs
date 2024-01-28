@@ -1,5 +1,53 @@
 use super::*;
 
+pub struct SymbolCell {
+	data: AtomicPtr<SymbolData>,
+}
+
+impl SymbolCell {
+	pub const fn new() -> Self {
+		Self {
+			data: AtomicPtr::new(std::ptr::null_mut()),
+		}
+	}
+
+	pub fn get(&self) -> Option<Symbol> {
+		let ptr = self.data.load(Order::Relaxed);
+		NonNull::new(ptr).map(|data| Symbol { data })
+	}
+
+	pub fn set(&self, symbol: Symbol) {
+		self.data.store(symbol.data.as_ptr(), Order::Relaxed)
+	}
+
+	pub fn try_set(&self, symbol: Symbol) -> bool {
+		let new_value = symbol.data.as_ptr();
+		let result = self
+			.data
+			.compare_exchange(std::ptr::null_mut(), new_value, Order::Relaxed, Order::Relaxed);
+		match result {
+			Ok(_) => true,
+			Err(current) => current == new_value,
+		}
+	}
+}
+
+impl Clone for SymbolCell {
+	fn clone(&self) -> Self {
+		let out = Self::new();
+		if let Some(symbol) = self.get() {
+			out.set(symbol)
+		}
+		out
+	}
+}
+
+impl Default for SymbolCell {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
 /// Represents an arbitrary globally unique identifier stored as an interned
 /// array of bytes.
 ///
@@ -7,9 +55,6 @@ use super::*;
 /// and hashing uses plain pointer comparison.
 ///
 /// Symbols are ordered lexicographically.
-///
-/// The meaning of the symbol bytes (e.g. string, UUID, integer) is left to
-/// be specified by the environment.
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Symbol {
 	data: NonNull<SymbolData>,
@@ -32,7 +77,7 @@ impl Symbol {
 		Symbol { data: (&DATA).into() }
 	}
 
-	pub fn new<T: AsRef<str>>(str: T) -> Self {
+	pub fn get<T: AsRef<str>>(str: T) -> Self {
 		static MAP: Init<Table<SymbolKey, SymbolData>> = Init::default();
 
 		let str = str.as_ref();
@@ -54,6 +99,7 @@ impl Symbol {
 		Symbol { data: data.into() }
 	}
 
+	#[inline(always)]
 	pub fn len(&self) -> usize {
 		let data = self.data();
 		data.len
@@ -68,7 +114,7 @@ impl Symbol {
 		}
 	}
 
-	fn write_name(&self, f: &mut Formatter) -> Result<()> {
+	pub fn write_name(&self, f: &mut Formatter) -> Result<()> {
 		let str = self.as_str();
 		let mut safe = str.len() > 0;
 		for chr in str.chars() {
@@ -100,7 +146,7 @@ impl Default for Symbol {
 
 impl<T: AsRef<str>> From<T> for Symbol {
 	fn from(value: T) -> Self {
-		Symbol::new(value)
+		Symbol::get(value)
 	}
 }
 
@@ -203,18 +249,18 @@ mod tests {
 	fn basic_symbols() {
 		assert_eq!(Symbol::empty(), Symbol::empty());
 		assert_eq!(Symbol::empty(), Symbol::default());
-		assert_eq!(Symbol::empty(), Symbol::new(""));
+		assert_eq!(Symbol::empty(), Symbol::get(""));
 
 		assert_eq!(0, Symbol::empty().len());
-		assert_eq!(4, Symbol::new("1234").len());
+		assert_eq!(4, Symbol::get("1234").len());
 
-		assert_eq!(Symbol::new("abc"), Symbol::new("abc"));
-		assert_eq!(Symbol::new("123"), Symbol::new("123"));
+		assert_eq!(Symbol::get("abc"), Symbol::get("abc"));
+		assert_eq!(Symbol::get("123"), Symbol::get("123"));
 
-		assert_eq!(Symbol::new("abc").data.as_ptr(), Symbol::new("abc").data.as_ptr());
-		assert_eq!(Symbol::new("123").data.as_ptr(), Symbol::new("123").data.as_ptr());
+		assert_eq!(Symbol::get("abc").data.as_ptr(), Symbol::get("abc").data.as_ptr());
+		assert_eq!(Symbol::get("123").data.as_ptr(), Symbol::get("123").data.as_ptr());
 
-		assert_eq!("$abc", Symbol::new("abc").to_string());
-		assert_eq!("$123", Symbol::new("123").to_string());
+		assert_eq!("$abc", Symbol::get("abc").to_string());
+		assert_eq!("$123", Symbol::get("123").to_string());
 	}
 }
