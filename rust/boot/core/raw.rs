@@ -88,6 +88,7 @@ impl Eval for ExpandRaw {
 					Raw::List(tokens, ..) => {
 						let group = Node::new_at(Group, tokens.span());
 						let children = tokens.list().iter().map(|x| Node::new(*x));
+						group.set_done(true);
 						group.append_nodes(children);
 						it.replace([group]);
 					}
