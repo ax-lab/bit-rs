@@ -107,10 +107,10 @@ pub struct Options {
 }
 
 pub fn execute(input: &[Source], options: Options) -> Result<()> {
-	let program = Node::new(Program, Span::empty());
+	let program = Node::new_at(Program, Span::empty());
 	for it in input.iter().copied() {
 		let span = it.span();
-		let node = Node::new(it, span);
+		let node = Node::new_at(it, span);
 		program.push_node(node);
 	}
 

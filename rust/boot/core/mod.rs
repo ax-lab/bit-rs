@@ -1,8 +1,10 @@
 use super::*;
 
 mod program;
+mod raw;
 
 pub use program::*;
+pub use raw::*;
 
 pub static SOURCES: Bindings = Bindings::new();
 
@@ -18,21 +20,17 @@ impl IsValue for Source {
 }
 
 #[derive(Debug)]
-pub struct PrintSource;
+pub struct Global<T: Eval>(T);
 
-impl Eval for PrintSource {
-	fn precedence(&self) -> Precedence {
-		Precedence::Source
+impl<T: Eval> Global<T> {
+	pub fn new(eval: T) -> Self {
+		Self(eval)
 	}
+}
 
-	fn execute(&self, nodes: &[Node]) -> Result<()> {
-		for it in nodes {
-			if let Some(src) = it.cast::<Source>() {
-				it.set_done(true);
-				println!("\n>>> {src} <<<\n");
-				println!("{}■", src.text());
-			}
-		}
-		Ok(())
+impl<T: Eval> GlobalInit for Global<T> {
+	fn init_eval(&'static self, src: Source) -> &'static dyn Eval {
+		let _ = src;
+		&self.0
 	}
 }

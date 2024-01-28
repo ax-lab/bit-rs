@@ -9,6 +9,22 @@ pub const INDENT: &'static str = "    ";
 pub const CR: u8 = '\r' as u8;
 pub const LF: u8 = '\n' as u8;
 
+pub fn indent<T: Display>(value: T) -> String {
+	indent_with(value, INDENT, INDENT)
+}
+
+pub fn indent_with<T: Display, U: Display, V: AsRef<str>>(value: T, prefix: U, indent: V) -> String {
+	let mut output = String::new();
+
+	{
+		let writer = Writer::fmt(&mut output);
+		let writer = &mut writer.indented_with(indent);
+		let _ = write!(writer, "{prefix}{value}");
+	}
+
+	output
+}
+
 /// Helper trait for objects that allow output.
 pub trait Writable {
 	fn write(&self, f: &mut Writer) -> Result<()>;
@@ -327,7 +343,7 @@ mod tests {
 	use super::*;
 
 	#[test]
-	pub fn basic_write() -> std::io::Result<()> {
+	fn basic_write() -> std::io::Result<()> {
 		let mut out = String::new();
 		{
 			let mut w = Writer::fmt(&mut out);
@@ -338,7 +354,7 @@ mod tests {
 	}
 
 	#[test]
-	pub fn indented_write() -> std::io::Result<()> {
+	fn indented_write() -> std::io::Result<()> {
 		// full write
 		let mut out = String::new();
 		{
@@ -364,7 +380,7 @@ mod tests {
 	}
 
 	#[test]
-	pub fn write_crlf() -> std::io::Result<()> {
+	fn write_crlf() -> std::io::Result<()> {
 		let mut out = String::new();
 		{
 			let mut w = Writer::fmt(&mut out).indented();
@@ -385,5 +401,12 @@ mod tests {
 		assert_eq!("Head(\n    Line 1\n    Line 2\n)", out);
 
 		Ok(())
+	}
+
+	#[test]
+	fn basic_indent() {
+		let input = "line 1\nline 2";
+		let output = indent(input);
+		assert_eq!("    line 1\n    line 2", output);
 	}
 }

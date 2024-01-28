@@ -26,6 +26,12 @@ impl Code {
 	}
 }
 
+impl HasSpan for Code {
+	fn span(&self) -> Span {
+		self.span
+	}
+}
+
 pub trait Compilable {
 	fn compile(&self) -> Result<Code>;
 }

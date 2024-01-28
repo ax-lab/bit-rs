@@ -22,6 +22,10 @@ impl TokenList {
 		self.0
 	}
 
+	pub fn span(&self) -> Span {
+		Span::range(self.list())
+	}
+
 	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> Self {
 		let sta = match range.start_bound() {
 			std::ops::Bound::Included(&n) => n,
@@ -69,18 +73,6 @@ impl Token {
 			Token::Comment(..) => Symbol::empty(),
 		}
 	}
-
-	pub fn span(&self) -> Span {
-		match self {
-			Token::Break(span) => *span,
-			Token::Symbol(.., span) => *span,
-			Token::Word(.., span) => *span,
-			Token::Integer(span) => *span,
-			Token::Float(span) => *span,
-			Token::Literal(span) => *span,
-			Token::Comment(span) => *span,
-		}
-	}
 }
 
 impl Display for Token {
@@ -101,6 +93,20 @@ impl Display for Token {
 			Token::Float(..) => write!(f, "float"),
 			Token::Literal(..) => write!(f, "literal"),
 			Token::Comment(..) => write!(f, "comment"),
+		}
+	}
+}
+
+impl HasSpan for Token {
+	fn span(&self) -> Span {
+		match self {
+			Token::Break(span) => *span,
+			Token::Symbol(.., span) => *span,
+			Token::Word(.., span) => *span,
+			Token::Integer(span) => *span,
+			Token::Float(span) => *span,
+			Token::Literal(span) => *span,
+			Token::Comment(span) => *span,
 		}
 	}
 }

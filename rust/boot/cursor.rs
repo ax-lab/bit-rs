@@ -23,8 +23,12 @@ impl Cursor {
 	}
 
 	#[inline(always)]
-	pub fn span(&self, len: usize) -> Span {
+	pub fn span_with(&self, len: usize) -> Span {
 		Span::new(self.src, self.pos, self.pos + len)
+	}
+
+	pub fn to_span(&self) -> Span {
+		self.span_with(self.len())
 	}
 
 	#[inline(always)]
@@ -73,24 +77,6 @@ impl Cursor {
 		}
 	}
 
-	pub fn display_chars(&self, max_chars: usize) -> Span {
-		let text = self.text();
-		let index = text.find(|chr| is_space(chr) || chr == '\r' || chr == '\n');
-		let index = index.unwrap_or(text.len());
-		let text = &text[..index];
-		let index = text
-			.char_indices()
-			.nth(max_chars + 1)
-			.map(|(index, _)| index)
-			.unwrap_or(text.len());
-		self.span(index)
-	}
-
-	pub fn text_context(&self) -> &'static str {
-		const MAX_CHARS: usize = 10;
-		self.display_chars(MAX_CHARS).text()
-	}
-
 	fn advance(&mut self, char: char) {
 		let is_indent = self.ind == self.col && is_space(char);
 		match char {
@@ -128,5 +114,11 @@ impl Display for Cursor {
 		let line = self.row + 1;
 		let column = self.col + 1;
 		write!(f, "{src}:{line}:{column}")
+	}
+}
+
+impl HasSpan for Cursor {
+	fn span(&self) -> Span {
+		self.to_span()
 	}
 }

@@ -4,13 +4,14 @@ use boot::*;
 
 fn main() {
 	if let Err(err) = run() {
-		eprintln!("\nError: {err}\n");
+		eprintln!("\n{err}\n");
 		std::process::exit(1);
 	}
 }
 
 fn run() -> Result<()> {
-	SOURCES.set_init(PrintSource);
+	let lexer = Lexer::new();
+	SOURCES.add_global_init(DefaultLexer(lexer));
 
 	let source = SourceMap::new(".")?;
 

@@ -18,7 +18,12 @@ struct NodeData {
 static PENDING_NODES: AtomicPtr<NodeData> = AtomicPtr::new(std::ptr::null_mut());
 
 impl Node {
-	pub fn new<T: Into<Value>>(value: T, span: Span) -> Self {
+	pub fn new<T: Into<Value> + HasSpan>(value: T) -> Self {
+		let span = value.span();
+		Self::new_at(value, span)
+	}
+
+	pub fn new_at<T: Into<Value>>(value: T, span: Span) -> Self {
 		let value = value.into();
 		let data = Arena::get().alloc(NodeData {
 			span,
@@ -54,7 +59,7 @@ impl Node {
 		while let Some(data) = NonNull::new(pending) {
 			let node = Node { data };
 			if !node.done() {
-				return Err(err!("node has not been solved: {}", node.display_message()));
+				return raise!(@node => "node has not been solved:\n{node}");
 			}
 
 			pending = node.data().next_pending.load(Order::Relaxed);
@@ -99,12 +104,6 @@ impl Node {
 	pub fn source(&self) -> Source {
 		let data = self.data();
 		data.span.source()
-	}
-
-	#[inline(always)]
-	pub fn span(&self) -> Span {
-		let data = self.data();
-		data.span
 	}
 
 	#[inline(always)]
@@ -225,16 +224,6 @@ impl Node {
 		}
 	}
 
-	pub fn display_message(&self) -> String {
-		let mut out = String::new();
-		{
-			let mut out = Writer::fmt(&mut out);
-			let _ = self.value().get().describe(&mut out);
-			let _ = self.write_pos(&mut out, " at ");
-		}
-		out
-	}
-
 	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> &'static [Node] {
 		let data = self.data();
 		let children = data.children.items();
@@ -310,7 +299,7 @@ impl Node {
 		let span = self.span();
 		if !span.is_empty() {
 			write!(f, "{label}{span}")?;
-			if let Some(text) = span.display_text() {
+			if let Some(text) = span.display_text(0) {
 				write!(f, "    # {text}")?;
 			}
 		}
@@ -351,14 +340,10 @@ impl Writable for Node {
 
 formatted!(Node);
 
-impl From<Node> for Span {
-	fn from(value: Node) -> Self {
-		value.span()
-	}
-}
-
-impl From<&Node> for Span {
-	fn from(value: &Node) -> Self {
-		value.span()
+impl HasSpan for Node {
+	#[inline(always)]
+	fn span(&self) -> Span {
+		let data = self.data();
+		data.span
 	}
 }

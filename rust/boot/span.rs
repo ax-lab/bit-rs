@@ -1,5 +1,21 @@
 use super::*;
 
+pub trait HasSpan {
+	fn span(&self) -> Span;
+}
+
+impl<T: HasSpan> HasSpan for &T {
+	fn span(&self) -> Span {
+		T::span(*self)
+	}
+}
+
+impl<T: HasSpan> HasSpan for &mut T {
+	fn span(&self) -> Span {
+		T::span(*self)
+	}
+}
+
 #[derive(Copy, Clone, Default, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Span {
 	source: Source,
@@ -54,12 +70,12 @@ impl Span {
 		Span::new(self.source, self.sta, self.sta + len)
 	}
 
-	pub fn range<T: IntoIterator<Item = U>, U: Into<Span>>(elems: T) -> Span {
+	pub fn range<T: IntoIterator<Item = U>, U: HasSpan>(elems: T) -> Span {
 		let mut iter = elems.into_iter();
 		if let Some(first) = iter.next() {
-			let first = first.into();
+			let first = first.span();
 			if let Some(last) = iter.last() {
-				let last = last.into();
+				let last = last.span();
 				Self::merge(first, last)
 			} else {
 				first
@@ -96,8 +112,8 @@ impl Span {
 		cursor
 	}
 
-	pub fn display_text(&self) -> Option<Cow<'static, str>> {
-		const MAX_LEN: usize = 30;
+	pub fn display_text(&self, max_len: usize) -> Option<Cow<'static, str>> {
+		let max_len = max_len.max(30);
 
 		let text = self.text();
 		let text = if let Some(index) = text.find(|chr| chr == '\r' || chr == '\n') {
@@ -113,7 +129,7 @@ impl Span {
 			(prefix, trimmed)
 		};
 
-		let (text, suffix) = if let Some((n, _)) = text.char_indices().nth(MAX_LEN) {
+		let (text, suffix) = if let Some((n, _)) = text.char_indices().nth(max_len) {
 			(&text[..n], "…")
 		} else {
 			(text, suffix)
@@ -153,6 +169,16 @@ impl Debug for Span {
 		write!(f, "{src}:{sta}")?;
 		if len > 0 {
 			write!(f, "+{len}")?;
+		}
+		Ok(())
+	}
+}
+
+impl<'a> Writer<'a> {
+	pub fn write_location<T: AsRef<str>>(&mut self, label: T, span: Span) -> Result<()> {
+		if !span.is_empty() {
+			let label = label.as_ref();
+			write!(self, "{label}{span}")?;
 		}
 		Ok(())
 	}

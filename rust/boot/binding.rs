@@ -7,7 +7,7 @@ pub struct Bindings {
 #[derive(Default)]
 struct BindTable {
 	by_source: Table<Source, BindingMap>,
-	globals: RwLock<Vec<&'static dyn Eval>>,
+	globals: RwLock<Vec<&'static dyn GlobalInit>>,
 }
 
 impl Bindings {
@@ -23,7 +23,11 @@ impl Bindings {
 		map.queue_reindex();
 	}
 
-	pub fn set_init<T: Eval>(&self, eval: T) {
+	pub fn add_eval<T: Eval>(&self, eval: T) {
+		self.add_global_init(Global::new(eval));
+	}
+
+	pub fn add_global_init<T: GlobalInit>(&self, eval: T) {
 		let bindings = self.bindings.get();
 		let eval = Arena::get().store(eval);
 		let mut globals = bindings.globals.write().unwrap();
@@ -48,9 +52,9 @@ impl Bindings {
 			let map = arena.store(BindingMap::default());
 			let globals = bindings.globals.read().unwrap();
 			let span = src.span();
-			for &eval in globals.iter() {
+			for &global in globals.iter() {
 				map.add_bind(Bind {
-					eval,
+					eval: global.init_eval(*src),
 					span,
 					parent: map,
 				});

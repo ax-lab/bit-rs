@@ -5,27 +5,71 @@ use std::{
 
 use super::*;
 
-#[derive(Default)]
-pub struct DefaultLexer {
+pub struct DefaultLexer(pub Lexer);
+
+impl GlobalInit for DefaultLexer {
+	fn init_eval(&'static self, _src: Source) -> &'static dyn Eval {
+		Arena::get().store(self.0.clone())
+	}
+}
+
+impl Debug for DefaultLexer {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "LexSource")
+	}
+}
+impl Eval for Lexer {
+	fn precedence(&self) -> Precedence {
+		Precedence::Source
+	}
+
+	fn execute(&self, nodes: &[Node]) -> Result<()> {
+		for it in nodes {
+			if let Some(src) = it.cast::<Source>() {
+				it.set_done(true);
+
+				let mut cursor = Cursor::new(*src);
+				let tokens = self.tokenize(&mut cursor)?;
+
+				if cursor.len() > 0 {
+					assert!(cursor.len() == 0,);
+					raise!(@cursor => "failed to parse");
+				}
+
+				let value = if tokens.len() > 0 {
+					Raw::List(TokenList::new(tokens))
+				} else {
+					Raw::Empty(cursor.to_span())
+				};
+
+				Node::new(value);
+			}
+		}
+		Ok(())
+	}
+}
+
+#[derive(Default, Clone)]
+pub struct Lexer {
 	symbols: SymbolTable,
 }
 
-impl DefaultLexer {
+impl Lexer {
 	pub fn new() -> Self {
 		Self::default()
 	}
 
-	pub fn add_symbol<T: AsRef<str>>(&mut self, symbol: T) -> Symbol {
+	pub fn add_symbol<T: AsRef<str>>(&self, symbol: T) -> Symbol {
 		self.symbols.add(symbol)
 	}
 
-	pub fn add_symbols<S: AsRef<str>, I: IntoIterator<Item = S>>(&mut self, symbols: I) {
+	pub fn add_symbols<S: AsRef<str>, I: IntoIterator<Item = S>>(&self, symbols: I) {
 		for it in symbols.into_iter() {
 			self.add_symbol(it.as_ref());
 		}
 	}
 
-	pub fn tokenize(&mut self, cursor: &mut Cursor) -> Result<Vec<Token>> {
+	pub fn tokenize(&self, cursor: &mut Cursor) -> Result<Vec<Token>> {
 		let mut output = Vec::new();
 		while cursor.len() > 0 {
 			let text = cursor.text();
@@ -49,16 +93,14 @@ impl DefaultLexer {
 
 			let token = if let Some('\r' | '\n') = text.chars().next() {
 				let len = if text.starts_with("\r\n") { 2 } else { 1 };
-				Token::Break(cursor.span(len))
+				Token::Break(cursor.span_with(len))
 			} else if let Some(token) = self.match_next(cursor) {
 				token
 			} else {
 				if let Some(symbol) = self.symbols.read(text) {
-					Token::Symbol(symbol, cursor.span(symbol.len()))
+					Token::Symbol(symbol, cursor.span_with(symbol.len()))
 				} else {
-					let display = cursor.display_chars(5).text();
-					let sep = if display.len() > 0 { " -- " } else { "" };
-					return Err(err!("invalid token at {}{sep}{display}", cursor.span(0)));
+					return raise!(@cursor => "invalid token");
 				}
 			};
 
@@ -79,7 +121,7 @@ impl DefaultLexer {
 					break;
 				}
 			}
-			Token::Comment(cursor.span(len))
+			Token::Comment(cursor.span_with(len))
 		} else if next == '\'' || next == '"' {
 			let quote = next;
 			let can_escape = true;
@@ -96,7 +138,7 @@ impl DefaultLexer {
 					escape = true;
 				}
 			}
-			Token::Literal(cursor.span(len))
+			Token::Literal(cursor.span_with(len))
 		} else if is_digit(next) {
 			let len = count_digits(text);
 			let (len, flt) = if text[len..].starts_with(".") {
@@ -129,7 +171,7 @@ impl DefaultLexer {
 				(len, flt)
 			};
 			let len = len + count_alpha_num(&text[len..]);
-			let span = cursor.span(len);
+			let span = cursor.span_with(len);
 			if flt {
 				Token::Float(span)
 			} else {
@@ -149,7 +191,7 @@ impl DefaultLexer {
 			if word_len > 0 {
 				let word = &text[..word_len];
 				let word = Symbol::get(word);
-				Token::Word(word, cursor.span(word_len))
+				Token::Word(word, cursor.span_with(word_len))
 			} else {
 				return None;
 			}
@@ -159,13 +201,18 @@ impl DefaultLexer {
 	}
 }
 
+impl Debug for Lexer {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "DefaultLexer")
+	}
+}
+
 const SYMBOL_SLOTS: usize = 1024;
 const SYMBOL_MAX_LOAD: usize = SYMBOL_SLOTS / 16 * 10;
 
-#[derive(Clone)]
 pub struct SymbolTable {
-	count: usize,
-	max_len: usize,
+	count: AtomicUsize,
+	max_len: AtomicUsize,
 	symbols: [SymbolCell; SYMBOL_SLOTS],
 	state: RandomState,
 }
@@ -179,25 +226,26 @@ impl SymbolTable {
 		const EMPTY: SymbolCell = SymbolCell::new();
 		let symbols: [SymbolCell; SYMBOL_SLOTS] = [EMPTY; SYMBOL_SLOTS];
 		Self {
-			count: 0,
-			max_len: 0,
+			count: 0.into(),
+			max_len: 0.into(),
 			symbols,
 			state: RandomState::new(),
 		}
 	}
 
+	#[inline(always)]
 	pub fn count(&self) -> usize {
-		self.count
+		self.count.load(Order::Relaxed)
 	}
 
-	pub fn add<T: AsRef<str>>(&mut self, symbol: T) -> Symbol {
+	pub fn add<T: AsRef<str>>(&self, symbol: T) -> Symbol {
 		let symbol = symbol.as_ref();
 
-		self.max_len = self.max_len.max(symbol.len());
+		self.max_len.fetch_max(symbol.len(), Order::AcqRel);
 
 		debug_assert!(SYMBOL_SLOTS.is_power_of_two());
 		debug_assert!(SYMBOL_MAX_LOAD < SYMBOL_SLOTS);
-		if self.count >= SYMBOL_MAX_LOAD {
+		if self.count() >= SYMBOL_MAX_LOAD {
 			panic!("too many lexer symbols (max {SYMBOL_MAX_LOAD})");
 		}
 
@@ -212,7 +260,7 @@ impl SymbolTable {
 			} else {
 				let symbol = Symbol::get(symbol);
 				if self.symbols[index].try_set(symbol) {
-					self.count += 1;
+					self.count.fetch_add(1, Order::AcqRel);
 					return symbol;
 				}
 			}
@@ -245,7 +293,7 @@ impl SymbolTable {
 	}
 
 	pub fn read(&self, text: &str) -> Option<Symbol> {
-		let mut len = self.max_len.min(text.len());
+		let mut len = self.max_len.load(Order::Relaxed).min(text.len());
 		while len > 0 {
 			if text.is_char_boundary(len) {
 				if let Some(symbol) = self.query(&text[..len]) {
@@ -294,6 +342,17 @@ impl Default for SymbolTable {
 	}
 }
 
+impl Clone for SymbolTable {
+	fn clone(&self) -> Self {
+		Self {
+			count: self.count.load(Order::Acquire).into(),
+			max_len: self.max_len.load(Order::Acquire).into(),
+			symbols: self.symbols.clone(),
+			state: self.state.clone(),
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -302,7 +361,7 @@ mod tests {
 	fn symbol_table() {
 		const SHOW_STATS: bool = false;
 
-		let mut symbols = SymbolTable::default();
+		let symbols = SymbolTable::default();
 
 		assert_eq!(0, symbols.count());
 		assert_eq!(None, symbols.query(""));
@@ -547,7 +606,7 @@ mod tests {
 	}
 
 	fn tokenize(src: Source) -> Result<Vec<&'static str>> {
-		let mut lexer = DefaultLexer::new();
+		let lexer = Lexer::new();
 		lexer.add_symbols(["+", "++", "-", "--", "<", "<<", "<<<", "=", "==", ",", "."]);
 
 		let mut cursor = Cursor::new(src);
