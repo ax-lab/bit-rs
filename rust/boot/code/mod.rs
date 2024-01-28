@@ -47,7 +47,7 @@ impl<T: Compilable> Compilable for Result<T> {
 
 impl Compilable for Node {
 	fn compile(&self) -> Result<Code> {
-		let value = self.value().get();
+		let value = self.get_value().get();
 		value.output_code(*self)
 	}
 }

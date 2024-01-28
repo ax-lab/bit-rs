@@ -4,8 +4,32 @@ pub struct Bindings {
 	bindings: Init<BindTable>,
 }
 
+pub struct SymbolBindings {
+	bindings: Init<Table<Symbol, BindTable>>,
+}
+
+impl SymbolBindings {
+	pub const fn new() -> Self {
+		Self {
+			bindings: Init::default(),
+		}
+	}
+
+	#[inline(always)]
+	pub fn get<T: Into<Symbol>>(&self, symbol: T) -> &'static BindTable {
+		let symbol = symbol.into();
+		let bindings = self.bindings.get();
+		bindings.get(&symbol)
+	}
+
+	#[inline(always)]
+	pub fn add(&self, symbol: &Symbol, node: Node) {
+		self.get(*symbol).add_node(node);
+	}
+}
+
 #[derive(Default)]
-struct BindTable {
+pub struct BindTable {
 	by_source: Table<Source, BindingMap>,
 	globals: RwLock<Vec<&'static dyn GlobalInit>>,
 }
@@ -17,6 +41,18 @@ impl Bindings {
 		}
 	}
 
+	#[inline(always)]
+	pub fn get(&self) -> &'static BindTable {
+		self.bindings.get()
+	}
+
+	#[inline(always)]
+	pub fn add(&self, node: Node) {
+		self.get().add_node(node)
+	}
+}
+
+impl BindTable {
 	pub fn add_node(&self, node: Node) {
 		let map = self.get_by_source(node.source());
 		map.add_node(node);
@@ -28,9 +64,8 @@ impl Bindings {
 	}
 
 	pub fn add_global_init<T: GlobalInit>(&self, eval: T) {
-		let bindings = self.bindings.get();
 		let eval = Arena::get().store(eval);
-		let mut globals = bindings.globals.write().unwrap();
+		let mut globals = self.globals.write().unwrap();
 		globals.push(eval);
 	}
 
@@ -47,10 +82,9 @@ impl Bindings {
 	}
 
 	fn get_by_source(&self, src: Source) -> &'static BindingMap {
-		let bindings = self.bindings.get();
-		bindings.by_source.get_or_init_ref(&src, |arena, src| {
+		self.by_source.get_or_init_ref(&src, |arena, src| {
 			let map = arena.store(BindingMap::default());
-			let globals = bindings.globals.read().unwrap();
+			let globals = self.globals.read().unwrap();
 			let span = src.span();
 			for &global in globals.iter() {
 				map.add_bind(Bind {

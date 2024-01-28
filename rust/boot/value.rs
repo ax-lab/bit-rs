@@ -22,6 +22,10 @@ pub trait IsValue: 'static + Debug {
 		None
 	}
 
+	fn is_collection(&self) -> bool {
+		false
+	}
+
 	fn output_code(&self, node: Node) -> Result<Code> {
 		let mut msg = String::new();
 		{

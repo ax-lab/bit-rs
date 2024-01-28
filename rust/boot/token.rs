@@ -1,5 +1,27 @@
 use super::*;
 
+pub static INTEGER: Bindings = Bindings::new();
+pub static FLOAT: Bindings = Bindings::new();
+pub static LITERAL: Bindings = Bindings::new();
+pub static COMMENT: Bindings = Bindings::new();
+
+pub static SYMBOLS: SymbolBindings = SymbolBindings::new();
+pub static WORDS: SymbolBindings = SymbolBindings::new();
+
+impl IsValue for Token {
+	fn bind(&self, node: Node) {
+		match self {
+			Token::Break(..) => {}
+			Token::Symbol(s, _) => SYMBOLS.add(s, node),
+			Token::Word(s, _) => WORDS.add(s, node),
+			Token::Integer(..) => INTEGER.add(node),
+			Token::Float(..) => FLOAT.add(node),
+			Token::Literal(..) => LITERAL.add(node),
+			Token::Comment(..) => COMMENT.add(node),
+		}
+	}
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct TokenList(&'static [Token]);
 
@@ -110,8 +132,6 @@ impl HasSpan for Token {
 		}
 	}
 }
-
-impl IsValue for Token {}
 
 #[allow(non_snake_case)]
 pub struct Symbols {

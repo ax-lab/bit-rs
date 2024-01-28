@@ -88,6 +88,7 @@ pub enum Precedence {
 	LineSplit,
 	Indent,
 	ExpandRaw,
+	Comment,
 	LetDecl,
 	LetExpr,
 	BlockParse,
@@ -110,9 +111,15 @@ pub struct Options {
 pub fn init_core() {
 	let lexer = Lexer::new();
 
-	SOURCES.add_global_init(DefaultLexer(lexer));
-	RAW.add_eval(SplitLines);
-	RAW.add_eval(ExpandRaw);
+	let sources = SOURCES.get();
+	sources.add_global_init(DefaultLexer(lexer));
+
+	let raw = RAW.get();
+	raw.add_eval(SplitLines);
+	raw.add_eval(ExpandRaw);
+
+	let comment = COMMENT.get();
+	comment.add_eval(RemoveNode(Precedence::Comment));
 }
 
 pub fn execute(input: &[Source], options: Options) -> Result<()> {

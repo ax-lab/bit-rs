@@ -37,7 +37,7 @@ impl Raw {
 
 impl IsValue for Raw {
 	fn bind(&self, node: Node) {
-		RAW.add_node(node)
+		RAW.add(node)
 	}
 }
 
@@ -85,7 +85,12 @@ impl Eval for ExpandRaw {
 			if let Some(raw) = it.cast::<Raw>() {
 				it.set_done(true);
 				match raw {
-					Raw::List(tokens, ..) => it.replace(tokens.list().iter().map(|x| Node::new(*x))),
+					Raw::List(tokens, ..) => {
+						let group = Node::new_at(Group, tokens.span());
+						let children = tokens.list().iter().map(|x| Node::new(*x));
+						group.append_nodes(children);
+						it.replace([group]);
+					}
 					Raw::Empty(..) => {
 						it.remove();
 					}

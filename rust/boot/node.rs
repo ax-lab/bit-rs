@@ -68,7 +68,7 @@ impl Node {
 	}
 
 	pub fn send(&self, msg: Message) -> Result<bool> {
-		self.value().get().process(msg)
+		self.get_value().get().process(msg)
 	}
 
 	#[inline(always)]
@@ -107,14 +107,19 @@ impl Node {
 	}
 
 	#[inline(always)]
-	pub fn value(&self) -> Value {
+	pub fn get_value(&self) -> Value {
 		let data = self.data();
 		data.value.get()
 	}
 
 	#[inline(always)]
+	pub fn value(&self) -> &dyn IsValue {
+		self.get_value().get()
+	}
+
+	#[inline(always)]
 	pub fn cast<T: IsValue>(&self) -> Option<&'static T> {
-		self.value().cast()
+		self.get_value().cast()
 	}
 
 	#[inline(always)]
@@ -229,6 +234,10 @@ impl Node {
 			let idx = self.index();
 			parent.remove_nodes(idx..idx + 1);
 			data.index.store(0, Order::Relaxed);
+
+			if parent.value().is_collection() && parent.len() == 0 {
+				parent.remove();
+			}
 			true
 		} else {
 			false
@@ -326,7 +335,7 @@ impl Node {
 
 impl Writable for Node {
 	fn write(&self, f: &mut Writer) -> Result<()> {
-		let value = self.value();
+		let value = self.get_value();
 		if value.process(Message::Output(*self, f))? {
 			return Ok(());
 		}

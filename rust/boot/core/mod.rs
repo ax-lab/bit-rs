@@ -1,25 +1,14 @@
 use super::*;
 
+mod group;
 mod lines;
 mod program;
 mod raw;
 
+pub use group::*;
 pub use lines::*;
 pub use program::*;
 pub use raw::*;
-
-pub static SOURCES: Bindings = Bindings::new();
-
-impl IsValue for Source {
-	fn describe(&self, out: &mut Writer) -> Result<()> {
-		write!(out, "source text `{self}`")?;
-		Ok(())
-	}
-
-	fn bind(&self, node: Node) {
-		SOURCES.add_node(node);
-	}
-}
 
 #[derive(Debug)]
 pub struct Global<T: Eval>(T);
@@ -34,5 +23,22 @@ impl<T: Eval> GlobalInit for Global<T> {
 	fn init_eval(&'static self, src: Source) -> &'static dyn Eval {
 		let _ = src;
 		&self.0
+	}
+}
+
+#[derive(Debug)]
+pub struct RemoveNode(pub Precedence);
+
+impl Eval for RemoveNode {
+	fn precedence(&self) -> Precedence {
+		self.0
+	}
+
+	fn execute(&self, nodes: &[Node]) -> Result<()> {
+		for it in nodes {
+			it.set_done(true);
+			it.remove();
+		}
+		Ok(())
 	}
 }
