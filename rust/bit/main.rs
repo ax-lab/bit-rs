@@ -11,7 +11,10 @@ fn main() {
 
 fn run() -> Result<()> {
 	let lexer = Lexer::new();
+
 	SOURCES.add_global_init(DefaultLexer(lexer));
+
+	RAW.add_eval(SplitLines);
 
 	let source = SourceMap::new(".")?;
 

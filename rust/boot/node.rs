@@ -180,6 +180,17 @@ impl Node {
 		self.parent().and_then(|x| x.node(prev))
 	}
 
+	pub fn replace<T: IntoIterator<Item = Node>>(&self, nodes: T)
+	where
+		T::IntoIter: ExactSizeIterator,
+	{
+		if let Some(parent) = self.parent() {
+			let index = self.index();
+			self.remove();
+			parent.insert_nodes(index, nodes);
+		}
+	}
+
 	pub fn insert_nodes<T: IntoIterator<Item = Node>>(&self, at: usize, nodes: T)
 	where
 		T::IntoIter: ExactSizeIterator,

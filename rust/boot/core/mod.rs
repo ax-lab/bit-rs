@@ -1,8 +1,10 @@
 use super::*;
 
+mod lines;
 mod program;
 mod raw;
 
+pub use lines::*;
 pub use program::*;
 pub use raw::*;
 

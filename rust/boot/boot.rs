@@ -114,19 +114,19 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 		program.push_node(node);
 	}
 
-	Queue::process()?;
-
+	let err = Queue::process();
 	program.set_done(true);
-	Node::check_pending()?;
+
+	let err = err.and_then(|_| Node::check_pending());
 
 	if options.show_output {
 		let mut out = Writer::stdout();
-		write!(out, "\n===== PROGRAM =====\n\n")?;
+		write!(out, "\n========= PROGRAM =========\n\n")?;
 		program.write(&mut out)?;
-		write!(out, "\n\n")?;
+		write!(out, "\n\n===========================\n")?;
 	}
 
-	let output = program.compile()?;
+	let output = err.and_then(|_| program.compile())?;
 	println!("\n{output:#?}\n");
 
 	Ok(())

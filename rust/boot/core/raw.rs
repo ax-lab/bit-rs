@@ -2,15 +2,34 @@ use super::*;
 
 pub static RAW: Bindings = Bindings::new();
 
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum RawFlag {
+	None = 0,
+	LineSplit = 1 << 0,
+}
+
+impl RawFlag {
+	#[inline(always)]
+	pub fn and(self, flag: RawFlag) -> RawFlag {
+		unsafe { std::mem::transmute(self as u32 | flag as u32) }
+	}
+
+	#[inline(always)]
+	pub fn has(self, flag: RawFlag) -> bool {
+		(self as u32 & flag as u32) > 0
+	}
+}
+
 pub enum Raw {
-	List(TokenList),
+	List(TokenList, RawFlag),
 	Empty(Span),
 }
 
 impl Raw {
 	pub fn list(&self) -> &'static [Token] {
 		match self {
-			Raw::List(inner) => inner.list(),
+			Raw::List(inner, _) => inner.list(),
 			Raw::Empty(_) => &[],
 		}
 	}
@@ -25,7 +44,7 @@ impl IsValue for Raw {
 impl HasSpan for Raw {
 	fn span(&self) -> Span {
 		match self {
-			Raw::List(inner) => inner.span(),
+			Raw::List(inner, _) => inner.span(),
 			Raw::Empty(span) => *span,
 		}
 	}
@@ -34,7 +53,7 @@ impl HasSpan for Raw {
 impl Writable for Raw {
 	fn write(&self, f: &mut Writer) -> Result<()> {
 		match self {
-			Raw::List(inner) => {
+			Raw::List(inner, _) => {
 				write!(f, "Raw(")?;
 				{
 					let out = &mut f.indented();

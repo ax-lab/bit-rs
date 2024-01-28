@@ -37,12 +37,13 @@ impl Eval for Lexer {
 				}
 
 				let value = if tokens.len() > 0 {
-					Raw::List(TokenList::new(tokens))
+					Raw::List(TokenList::new(tokens), RawFlag::None)
 				} else {
 					Raw::Empty(cursor.to_span())
 				};
 
-				Node::new(value);
+				let node = Node::new(value);
+				it.push_node(node);
 			}
 		}
 		Ok(())
