@@ -113,7 +113,7 @@ impl Span {
 	}
 
 	pub fn display_text(&self, max_len: usize) -> Option<Cow<'static, str>> {
-		let max_len = max_len.max(30);
+		let max_len = if max_len == 0 { 30 } else { max_len };
 
 		let text = self.text();
 		let text = if let Some(index) = text.find(|chr| chr == '\r' || chr == '\n') {

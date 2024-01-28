@@ -17,6 +17,8 @@ struct NodeData {
 
 static PENDING_NODES: AtomicPtr<NodeData> = AtomicPtr::new(std::ptr::null_mut());
 
+const CHECK_PENDING: bool = true;
+
 impl Node {
 	pub fn new<T: Into<Value> + HasSpan>(value: T) -> Self {
 		let span = value.span();
@@ -37,7 +39,7 @@ impl Node {
 
 		let node = Self { data };
 
-		loop {
+		while CHECK_PENDING {
 			let next = PENDING_NODES.load(Order::Relaxed);
 			node.data().next_pending.store(next, Order::Relaxed);
 			if PENDING_NODES
@@ -53,17 +55,60 @@ impl Node {
 	}
 
 	pub fn check_pending() -> Result<()> {
+		if !CHECK_PENDING {
+			return Ok(());
+		}
+
 		let mut pending = PENDING_NODES
 			.fetch_update(Order::Release, Order::Acquire, |_| Some(std::ptr::null_mut()))
 			.unwrap();
+
+		let mut total = 0;
+		let mut pending_by_type: HashMap<TypeId, Vec<Node>> = HashMap::new();
 		while let Some(data) = NonNull::new(pending) {
 			let node = Node { data };
 			if !node.done() {
-				return raise!(@node => "node has not been solved:\n{node}");
+				let key = node.value().value_type();
+				let entries = pending_by_type.entry(key).or_default();
+				entries.push(node);
+				total += 1;
 			}
-
 			pending = node.data().next_pending.load(Order::Relaxed);
 		}
+
+		const MAX_NODES: usize = 30;
+
+		let pending = pending_by_type;
+		if total > 0 {
+			let max_per = (MAX_NODES / pending.len()).max(1);
+			let max_len = max_per * pending.len();
+			let mut err = String::new();
+			let (s, have) = if total != 1 { ("s", "have") } else { ("", "has") };
+
+			{
+				let mut msg = Writer::fmt(&mut err);
+
+				for (n, nodes) in pending.into_iter().map(|x| x.1).enumerate() {
+					if n > 0 {
+						let _ = write!(msg, "\n");
+					}
+					for node in nodes.into_iter().take(max_per) {
+						let _ = write!(msg, "\n=> ");
+						let _ = node.value().describe(&mut msg);
+						let _ = node.write_pos(&mut msg, "\n   … at ");
+					}
+				}
+
+				if total > max_len {
+					let cnt = total - max_len;
+					let s = if cnt > 1 { "s" } else { "" };
+					let _ = write!(msg, "\n\n…skipping remaining {cnt} node{s}");
+				}
+			}
+
+			raise!("{total} node{s} {have} not been solved:{err}");
+		}
+
 		Ok(())
 	}
 

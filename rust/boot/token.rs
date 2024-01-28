@@ -20,6 +20,25 @@ impl IsValue for Token {
 			Token::Comment(..) => COMMENT.add(node),
 		}
 	}
+
+	fn describe(&self, out: &mut Writer) -> Result<()> {
+		write!(out, "{self}")?;
+		let show_text = match self {
+			Token::Break(..) => false,
+			Token::Symbol(..) => false,
+			Token::Word(..) => false,
+			Token::Integer(..) => true,
+			Token::Float(..) => true,
+			Token::Literal(..) => true,
+			Token::Comment(..) => true,
+		};
+		if show_text {
+			if let Some(text) = self.span().display_text(16) {
+				write!(out, " `{text}`")?;
+			}
+		}
+		Ok(())
+	}
 }
 
 #[derive(Copy, Clone, Debug)]
