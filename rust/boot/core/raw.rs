@@ -71,3 +71,27 @@ impl Writable for Raw {
 }
 
 formatted!(Raw);
+
+#[derive(Debug)]
+pub struct ExpandRaw;
+
+impl Eval for ExpandRaw {
+	fn precedence(&self) -> Precedence {
+		Precedence::ExpandRaw
+	}
+
+	fn execute(&self, nodes: &[Node]) -> Result<()> {
+		for it in nodes {
+			if let Some(raw) = it.cast::<Raw>() {
+				it.set_done(true);
+				match raw {
+					Raw::List(tokens, ..) => it.replace(tokens.list().iter().map(|x| Node::new(*x))),
+					Raw::Empty(..) => {
+						it.remove();
+					}
+				}
+			}
+		}
+		Ok(())
+	}
+}

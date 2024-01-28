@@ -10,17 +10,12 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-	let lexer = Lexer::new();
+	init_core();
 
-	SOURCES.add_global_init(DefaultLexer(lexer));
-
-	RAW.add_eval(SplitLines);
-
-	let source = SourceMap::new(".")?;
-
+	let sources = SourceMap::new(".")?;
 	let mut input = HashSet::new();
 	for it in std::env::args().skip(1) {
-		let src = source.load_file(it)?;
+		let src = sources.load_file(it)?;
 		input.insert(src);
 	}
 

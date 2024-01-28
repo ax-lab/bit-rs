@@ -111,6 +111,8 @@ impl HasSpan for Token {
 	}
 }
 
+impl IsValue for Token {}
+
 #[allow(non_snake_case)]
 pub struct Symbols {
 	pub COMMA: Symbol,

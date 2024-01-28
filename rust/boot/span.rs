@@ -166,10 +166,11 @@ impl Debug for Span {
 		let src = self.source();
 		let sta = self.sta();
 		let len = self.len();
-		write!(f, "{src}:{sta}")?;
+		write!(f, "{src}[{sta}")?;
 		if len > 0 {
 			write!(f, "+{len}")?;
 		}
+		write!(f, "]")?;
 		Ok(())
 	}
 }

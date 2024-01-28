@@ -87,6 +87,7 @@ pub enum Precedence {
 	Source,
 	LineSplit,
 	Indent,
+	ExpandRaw,
 	LetDecl,
 	LetExpr,
 	BlockParse,
@@ -104,6 +105,14 @@ pub enum Precedence {
 #[derive(Default)]
 pub struct Options {
 	pub show_output: bool,
+}
+
+pub fn init_core() {
+	let lexer = Lexer::new();
+
+	SOURCES.add_global_init(DefaultLexer(lexer));
+	RAW.add_eval(SplitLines);
+	RAW.add_eval(ExpandRaw);
 }
 
 pub fn execute(input: &[Source], options: Options) -> Result<()> {
