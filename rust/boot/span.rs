@@ -23,6 +23,12 @@ pub struct Span {
 	end: usize,
 }
 
+impl HasSpan for Span {
+	fn span(&self) -> Span {
+		*self
+	}
+}
+
 impl Span {
 	pub fn empty() -> Self {
 		Self::default()
@@ -70,7 +76,35 @@ impl Span {
 		Span::new(self.source, self.sta, self.sta + len)
 	}
 
-	pub fn range<T: IntoIterator<Item = U>, U: HasSpan>(elems: T) -> Span {
+	pub fn for_slice<T: HasSpan, U: RangeBounds<usize>>(items: &[T], range: &U, parent: Span) -> Span {
+		let sta = match range.start_bound() {
+			std::ops::Bound::Included(&n) => n,
+			std::ops::Bound::Excluded(&n) => n + 1,
+			std::ops::Bound::Unbounded => 0,
+		};
+		let end = match range.end_bound() {
+			std::ops::Bound::Included(&n) => n + 1,
+			std::ops::Bound::Excluded(&n) => n,
+			std::ops::Bound::Unbounded => items.len(),
+		};
+		debug_assert!(end <= items.len() && sta < end);
+		if sta == 0 && end == 0 && items.len() == 0 {
+			parent.truncated(0)
+		} else if end > sta {
+			Span::for_range(&items[sta..end])
+		} else if sta < items.len() {
+			items[sta].span().truncated(0)
+		} else {
+			let last = items[items.len() - 1].span();
+			Span {
+				source: last.source,
+				sta: last.end,
+				end: last.end,
+			}
+		}
+	}
+
+	pub fn for_range<T: IntoIterator<Item = U>, U: HasSpan>(elems: T) -> Span {
 		let mut iter = elems.into_iter();
 		if let Some(first) = iter.next() {
 			let first = first.span();

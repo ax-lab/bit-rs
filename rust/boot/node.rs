@@ -1,5 +1,74 @@
 use super::*;
 
+#[derive(Copy, Clone)]
+pub struct NodeList {
+	items: &'static [Node],
+	span: Span,
+}
+
+impl NodeList {
+	#[inline(always)]
+	pub fn new(items: &'static [Node], span: Span) -> Self {
+		Self { items, span }
+	}
+
+	#[inline(always)]
+	pub fn len(&self) -> usize {
+		self.items.len()
+	}
+
+	#[inline(always)]
+	pub fn get(&self, index: usize) -> Option<Node> {
+		self.items.get(index).copied()
+	}
+
+	#[inline(always)]
+	pub fn as_slice(&self) -> &'static [Node] {
+		self.items
+	}
+
+	pub fn span(&self) -> Span {
+		Span::for_range(self.items)
+	}
+
+	#[inline(always)]
+	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> NodeList {
+		let sta = match range.start_bound() {
+			std::ops::Bound::Included(&n) => n,
+			std::ops::Bound::Excluded(&n) => n + 1,
+			std::ops::Bound::Unbounded => 0,
+		};
+		let end = match range.end_bound() {
+			std::ops::Bound::Included(&n) => n + 1,
+			std::ops::Bound::Excluded(&n) => n,
+			std::ops::Bound::Unbounded => self.items.len(),
+		};
+		debug_assert!(end <= self.items.len() && sta < end);
+
+		let span = Span::for_slice(self.items, &range, self.span);
+		let items = &self.items[sta..end];
+		Self::new(items, span)
+	}
+}
+
+impl IntoIterator for NodeList {
+	type Item = Node;
+	type IntoIter = std::iter::Copied<<&'static [Node] as IntoIterator>::IntoIter>;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.items.into_iter().copied()
+	}
+}
+
+impl std::ops::Index<usize> for NodeList {
+	type Output = Node;
+
+	#[inline(always)]
+	fn index(&self, index: usize) -> &Self::Output {
+		self.items.index(index)
+	}
+}
+
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Node {
 	data: NonNull<NodeData>,
@@ -289,7 +358,7 @@ impl Node {
 		}
 	}
 
-	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> &'static [Node] {
+	pub fn remove_nodes<T: RangeBounds<usize>>(self, range: T) -> NodeList {
 		let data = self.data();
 		let children = data.children.items();
 		let sta = match range.start_bound() {
@@ -298,9 +367,10 @@ impl Node {
 			std::ops::Bound::Unbounded => 0,
 		};
 
+		let removed_span = Span::for_slice(children, &range, self.span());
 		let removed = data.children.remove_and_set(children, range);
 		if removed.len() == 0 {
-			return removed;
+			return NodeList::new(removed, removed_span);
 		}
 
 		for it in removed {
@@ -315,7 +385,7 @@ impl Node {
 			it.index.store(n, Order::Relaxed);
 		}
 
-		return removed;
+		return NodeList::new(removed, removed_span);
 	}
 
 	#[inline(always)]

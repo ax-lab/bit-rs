@@ -64,7 +64,7 @@ impl TokenList {
 	}
 
 	pub fn span(&self) -> Span {
-		Span::range(self.list())
+		Span::for_range(self.list())
 	}
 
 	pub fn range<T: RangeBounds<usize>>(&self, range: T) -> Self {
@@ -164,6 +164,8 @@ pub struct Symbols {
 	pub END_BRACE: Symbol,
 	pub STA_BRACKET: Symbol,
 	pub END_BRACKET: Symbol,
+	pub TRUE: Symbol,
+	pub FALSE: Symbol,
 }
 
 impl Symbols {
@@ -179,6 +181,8 @@ impl Symbols {
 			END_BRACE: "}".into(),
 			STA_BRACKET: "[".into(),
 			END_BRACKET: "]".into(),
+			TRUE: "true".into(),
+			FALSE: "false".into(),
 		});
 		SYMBOLS.get()
 	}

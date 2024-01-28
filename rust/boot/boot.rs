@@ -100,6 +100,7 @@ pub enum Precedence {
 	Print,
 	BlockEval,
 	Output,
+	Literal,
 	Last,
 }
 
@@ -120,6 +121,18 @@ pub fn init_core() {
 
 	let comment = COMMENT.get();
 	comment.add_eval(RemoveNode(Precedence::Comment));
+
+	let print = WORDS.get("print");
+	print.add_eval(ParsePrint);
+
+	let literal = LITERAL.get();
+	literal.add_eval(ParseLiteral);
+
+	let integer = INTEGER.get();
+	integer.add_eval(ParseLiteral);
+
+	let float = FLOAT.get();
+	float.add_eval(ParseLiteral);
 }
 
 pub fn execute(input: &[Source], options: Options) -> Result<()> {

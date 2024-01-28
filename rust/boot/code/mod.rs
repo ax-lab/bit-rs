@@ -17,7 +17,7 @@ impl Code {
 		let code: Result<Vec<_>> = code.into_iter().map(|x| x.compile()).collect();
 		let code = code?;
 		let code = Arena::get().slice(code);
-		let span = Span::range(code.iter());
+		let span = Span::for_range(code.iter());
 		let code = Code {
 			expr: Expr::Sequence(code),
 			span,
