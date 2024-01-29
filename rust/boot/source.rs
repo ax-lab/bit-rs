@@ -11,6 +11,10 @@ impl IsValue for Source {
 	fn bind(&self, node: Node) {
 		SOURCES.add(node);
 	}
+
+	fn output_code(&self, ctx: CodeContext, node: Node) -> Result<Code> {
+		Code::sequence(ctx, node.children())
+	}
 }
 
 pub const DEFAULT_TAB_SIZE: usize = 4;

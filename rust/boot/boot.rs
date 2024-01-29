@@ -155,7 +155,10 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 		write!(out, "\n\n===========================\n")?;
 	}
 
-	let output = err.and_then(|_| program.compile())?;
+	let output = err.and_then(|_| {
+		let ctx = CodeContext::new();
+		program.value().output_code(ctx, program)
+	})?;
 	println!("\n{output:#?}\n");
 
 	Ok(())

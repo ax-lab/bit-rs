@@ -227,7 +227,7 @@ impl Node {
 	}
 
 	#[inline(always)]
-	pub fn value(&self) -> &dyn IsValue {
+	pub fn value(&self) -> &'static dyn IsValue {
 		self.get_value().get()
 	}
 
@@ -245,9 +245,10 @@ impl Node {
 	}
 
 	#[inline(always)]
-	pub fn children(&self) -> &'static [Node] {
+	pub fn children(&self) -> NodeList {
 		let data = self.data();
-		data.children.items()
+		let children = data.children.items();
+		NodeList::new(children, data.span)
 	}
 
 	#[inline(always)]
@@ -257,7 +258,7 @@ impl Node {
 
 	#[inline(always)]
 	pub fn node(&self, index: usize) -> Option<Node> {
-		self.children().get(index).copied()
+		self.children().get(index)
 	}
 
 	#[inline(always)]
@@ -267,7 +268,7 @@ impl Node {
 
 	#[inline(always)]
 	pub fn last(&self) -> Option<Node> {
-		self.children().last().copied()
+		self.children().as_slice().last().copied()
 	}
 
 	#[inline(always)]
@@ -460,7 +461,7 @@ impl Writable for Node {
 		if nodes.len() > 0 {
 			let mut f = f.indented();
 			write!(f, " {{")?;
-			for (n, it) in nodes.iter().enumerate() {
+			for (n, it) in nodes.into_iter().enumerate() {
 				write!(f, "\n")?;
 				write!(f, "[{n}] ")?;
 				it.write_with_pos(&mut f)?;

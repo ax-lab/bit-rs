@@ -8,7 +8,20 @@ pub enum Literal {
 	Str(&'static str),
 }
 
-impl IsValue for Literal {}
+impl IsValue for Literal {
+	fn output_code(&self, _ctx: CodeContext, node: Node) -> Result<Code> {
+		let expr = match self {
+			&Literal::Bool(v) => Expr::Bool(v),
+			&Literal::Int(v) => Expr::Int(v),
+			&Literal::Float(v) => Expr::Float(v),
+			&Literal::Str(v) => Expr::Str(v),
+		};
+		Ok(Code {
+			expr,
+			span: node.span(),
+		})
+	}
+}
 
 #[derive(Debug)]
 pub struct ParseLiteral;
@@ -154,20 +167,20 @@ fn parse_digits(text: &str, base: i64, span: &Span) -> Result<i64> {
 			continue;
 		}
 
-		let d = match chr {
+		let digit = match chr {
 			'0'..='9' => chr as i64 - ('0' as i64),
 			'a'..='z' => chr as i64 - ('a' as i64) + 0xA,
 			'A'..='Z' => chr as i64 - ('A' as i64) + 0xA,
 			_ => raise!(@span => "invalid digit `{chr}` in numeric literal"),
 		};
 
-		if d >= base {
+		if digit >= base {
 			raise!(@span => "invalid digit `{chr}` for numeric literal in base {base}");
 		}
 
 		output = output
 			.checked_mul(base)
-			.and_then(|v| v.checked_add(base))
+			.and_then(|v| v.checked_add(digit))
 			.ok_or_else(|| err!(@span => "numeric literal overflow"))?;
 	}
 	Ok(output)

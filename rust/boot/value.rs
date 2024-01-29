@@ -26,7 +26,8 @@ pub trait IsValue: 'static + Debug {
 		false
 	}
 
-	fn output_code(&self, node: Node) -> Result<Code> {
+	fn output_code(&self, ctx: CodeContext, node: Node) -> Result<Code> {
+		let _ = ctx;
 		let mut msg = String::new();
 		{
 			let mut out = Writer::new(msg.writer());

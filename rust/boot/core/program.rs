@@ -27,7 +27,7 @@ impl IsValue for Program {
 		Ok(true)
 	}
 
-	fn output_code(&self, node: Node) -> Result<Code> {
-		Code::sequence(node.children())
+	fn output_code(&self, ctx: CodeContext, node: Node) -> Result<Code> {
+		Code::sequence(ctx, node.children())
 	}
 }

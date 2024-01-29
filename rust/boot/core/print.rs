@@ -3,7 +3,15 @@ use super::*;
 #[derive(Debug)]
 pub struct Print;
 
-impl IsValue for Print {}
+impl IsValue for Print {
+	fn output_code(&self, ctx: CodeContext, node: Node) -> Result<Code> {
+		let list = Code::list(ctx, node.children())?;
+		Ok(Code {
+			expr: Expr::Print(list),
+			span: node.span(),
+		})
+	}
+}
 
 #[derive(Debug)]
 pub struct ParsePrint;
