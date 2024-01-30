@@ -125,3 +125,77 @@ impl<T: Compilable> Compilable for &T {
 		T::compile(self, ctx)
 	}
 }
+
+#[derive(Default)]
+pub struct Runtime;
+
+impl Code {
+	pub fn execute(&self, rt: &mut Runtime) -> Result<Value> {
+		let value = match self.expr {
+			Expr::None => Value::new(()),
+			Expr::Sequence(code) => {
+				let mut output = Value::new(());
+				for it in code {
+					output = it.execute(rt)?;
+				}
+				output
+			}
+			Expr::Print(args) => {
+				let mut empty = true;
+				for it in args {
+					let out = it.execute(rt)?;
+					if out.is::<()>() {
+						continue;
+					}
+
+					if !empty {
+						print!(" ");
+					}
+					print!("{out}");
+					empty = false;
+				}
+				println!();
+				Value::new(())
+			}
+			Expr::Bool(v) => Value::new(v),
+			Expr::Int(v) => Value::new(v),
+			Expr::Float(v) => Value::new(v),
+			Expr::Str(v) => Value::new(v),
+		};
+		Ok(value)
+	}
+}
+
+impl IsValue for () {}
+
+impl IsValue for bool {
+	fn as_writable(&self) -> Option<&dyn Writable> {
+		Some(self)
+	}
+}
+
+writable!(bool);
+
+impl IsValue for i64 {
+	fn as_writable(&self) -> Option<&dyn Writable> {
+		Some(self)
+	}
+}
+
+writable!(i64);
+
+impl IsValue for f64 {
+	fn as_writable(&self) -> Option<&dyn Writable> {
+		Some(self)
+	}
+}
+
+writable!(f64);
+
+impl IsValue for &'static str {
+	fn as_writable(&self) -> Option<&dyn Writable> {
+		Some(self)
+	}
+}
+
+writable!(&'static str);

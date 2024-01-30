@@ -14,7 +14,18 @@ fn run() -> Result<()> {
 
 	let sources = SourceMap::new(".")?;
 	let mut input = HashSet::new();
+
+	let mut show_program = false;
+	let mut dump_code = false;
 	for it in std::env::args().skip(1) {
+		if it == "--show-program" {
+			show_program = true;
+		} else if it == "--dump-code" {
+			dump_code = true;
+		} else if it == "--dump" {
+			show_program = true;
+			dump_code = true;
+		}
 		let src = sources.load_file(it)?;
 		input.insert(src);
 	}
@@ -23,7 +34,8 @@ fn run() -> Result<()> {
 	input.sort();
 
 	let options = Options {
-		show_output: true,
+		show_program,
+		dump_code,
 		..Default::default()
 	};
 

@@ -86,6 +86,11 @@ impl Value {
 		}
 	}
 
+	#[inline(always)]
+	pub fn is<T: IsValue>(&self) -> bool {
+		self.get().value_type() == TypeId::of::<T>()
+	}
+
 	pub fn process(&self, msg: Message) -> Result<bool> {
 		self.get().process(msg)
 	}

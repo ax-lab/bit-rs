@@ -106,7 +106,8 @@ pub enum Precedence {
 
 #[derive(Default)]
 pub struct Options {
-	pub show_output: bool,
+	pub show_program: bool,
+	pub dump_code: bool,
 }
 
 pub fn init_core() {
@@ -148,7 +149,7 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 
 	let err = err.and_then(|_| Node::check_pending());
 
-	if options.show_output {
+	if options.show_program {
 		let mut out = Writer::stdout();
 		write!(out, "\n========= PROGRAM =========\n\n")?;
 		program.write(&mut out)?;
@@ -159,7 +160,17 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 		let ctx = CodeContext::new();
 		program.value().output_code(ctx, program)
 	})?;
-	println!("\n{output:#?}\n");
+
+	if options.dump_code {
+		println!("\n{output:#?}\n");
+	}
+
+	let mut rt = Runtime::default();
+	let value = output.execute(&mut rt)?;
+
+	if !value.is::<()>() {
+		println!("\nanswer = {value}");
+	}
 
 	Ok(())
 }
