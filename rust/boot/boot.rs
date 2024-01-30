@@ -34,6 +34,7 @@ use std::{
 mod arena;
 mod binding;
 mod chars;
+mod cmd;
 mod code;
 mod core;
 mod cursor;
@@ -50,12 +51,16 @@ mod source;
 mod span;
 mod symbol;
 mod table;
+mod temp;
+mod term;
 mod token;
+mod unicode;
 mod value;
 
 pub use arena::*;
 pub use binding::*;
 pub use chars::*;
+pub use cmd::*;
 pub use code::*;
 pub use core::*;
 pub use cursor::*;
@@ -71,7 +76,10 @@ pub use source::*;
 pub use span::*;
 pub use symbol::*;
 pub use table::*;
+pub use temp::*;
+pub use term::*;
 pub use token::*;
+pub use unicode::*;
 pub use value::*;
 
 use heap::*;
@@ -108,6 +116,7 @@ pub enum Precedence {
 pub struct Options {
 	pub show_program: bool,
 	pub dump_code: bool,
+	pub compile: bool,
 }
 
 pub fn init_core() {
@@ -165,12 +174,31 @@ pub fn execute(input: &[Source], options: Options) -> Result<()> {
 		println!("\n{output:#?}\n");
 	}
 
-	let mut rt = Runtime::default();
-	let value = output.execute(&mut rt)?;
+	if options.compile {
+		let mut builder = clang::Builder::new();
+		let code = output.generate_c(&mut builder)?;
 
-	if !value.is::<()>() {
-		println!("\nanswer = {value}");
+		let mut runner = builder.build(code);
+		if options.dump_code {
+			println!("\n{}\n", runner.code);
+		}
+
+		let status = runner.run()?;
+		if !status.success() {
+			raise!("finished with status {status}");
+		}
+	} else {
+		let mut rt = Runtime::default();
+		let value = output.execute(&mut rt)?;
+
+		if !value.is::<()>() {
+			println!("\nanswer = {value}");
+		}
 	}
 
 	Ok(())
+}
+
+pub fn error<T: std::fmt::Display>(msg: T) {
+	let _ = term::error(std::io::stderr(), msg);
 }

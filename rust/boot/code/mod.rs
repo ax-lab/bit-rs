@@ -1,5 +1,7 @@
 use super::*;
 
+pub mod clang;
+
 #[derive(Copy, Clone)]
 pub struct CodeContext {
 	data: &'static CodeContextData,

@@ -9,3 +9,5 @@ publish = false
 path = "boot.rs"
 
 [dependencies]
+
+rand = "0.8.5"

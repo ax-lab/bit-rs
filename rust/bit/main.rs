@@ -15,29 +15,25 @@ fn run() -> Result<()> {
 	let sources = SourceMap::new(".")?;
 	let mut input = HashSet::new();
 
-	let mut show_program = false;
-	let mut dump_code = false;
+	let mut options = Options::default();
 	for it in std::env::args().skip(1) {
 		if it == "--show-program" {
-			show_program = true;
+			options.show_program = true;
 		} else if it == "--dump-code" {
-			dump_code = true;
+			options.dump_code = true;
 		} else if it == "--dump" {
-			show_program = true;
-			dump_code = true;
+			options.show_program = true;
+			options.dump_code = true;
+		} else if it == "--compile" {
+			options.compile = true;
+		} else {
+			let src = sources.load_file(it)?;
+			input.insert(src);
 		}
-		let src = sources.load_file(it)?;
-		input.insert(src);
 	}
 
 	let mut input = input.into_iter().collect::<Vec<_>>();
 	input.sort();
-
-	let options = Options {
-		show_program,
-		dump_code,
-		..Default::default()
-	};
 
 	execute(&input, options)?;
 
