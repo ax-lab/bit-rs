@@ -6,7 +6,9 @@ use std::{
 	process::{Command, ExitStatus, Output, Stdio},
 };
 
+#[derive(Default)]
 pub enum Kind {
+	#[default]
 	Void,
 	Str,
 	I64,
@@ -31,6 +33,7 @@ impl Kind {
 	}
 }
 
+#[derive(Default)]
 pub struct Func {
 	body: String,
 	expr: String,
@@ -38,6 +41,10 @@ pub struct Func {
 }
 
 impl Func {
+	pub fn empty() -> Self {
+		Self::default()
+	}
+
 	pub fn i64(value: i64) -> Self {
 		let body = String::new();
 		let kind = Kind::I64;
@@ -187,8 +194,19 @@ impl Builder {
 impl Code {
 	pub fn generate_c(&self, builder: &mut Builder) -> Result<Func> {
 		let out = match self.expr {
-			Expr::None => todo!(),
-			Expr::Sequence(_) => todo!(),
+			Expr::None => Func::empty(),
+			Expr::Sequence(code) => {
+				let mut body = String::new();
+				let mut expr = String::new();
+				let mut kind = Kind::Void;
+				for it in code.iter() {
+					let func = it.generate_c(builder)?;
+					body.push_str(&func.body);
+					kind = func.kind;
+					expr = func.expr;
+				}
+				Func { expr, body, kind }
+			}
 			Expr::Bool(_) => todo!(),
 			Expr::Int(v) => {
 				builder.include_system("inttypes.h");
