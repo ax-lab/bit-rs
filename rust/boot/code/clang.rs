@@ -6,7 +6,7 @@ use std::{
 	process::{Command, ExitStatus, Output, Stdio},
 };
 
-#[derive(Default)]
+#[derive(Default, Eq, PartialEq)]
 pub enum Kind {
 	#[default]
 	Void,
@@ -32,7 +32,7 @@ impl Kind {
 			Kind::Void => return None,
 			Kind::Str => "%s",
 			Kind::I64 => "%\" PRId64 \"",
-			Kind::Bool => "%d",
+			Kind::Bool => "%s",
 			Kind::Float => "%g",
 		};
 		Some(out)
@@ -269,7 +269,11 @@ impl Code {
 						code.push_str(fmt);
 
 						if var > 0 {
-							let _ = write!(vals, ", _${var}_");
+							let _ = if func.kind == Kind::Bool {
+								write!(vals, ", _${var}_ ? \"true\" : \"false\"")
+							} else {
+								write!(vals, ", _${var}_")
+							};
 						}
 					}
 				}
