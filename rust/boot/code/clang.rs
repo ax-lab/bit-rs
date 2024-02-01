@@ -12,6 +12,8 @@ pub enum Kind {
 	Void,
 	Str,
 	I64,
+	Bool,
+	Float,
 }
 
 impl Kind {
@@ -20,6 +22,8 @@ impl Kind {
 			Kind::Void => out.push_str("void"),
 			Kind::Str => out.push_str("const char*"),
 			Kind::I64 => out.push_str("int64_t"),
+			Kind::Bool => out.push_str("bool"),
+			Kind::Float => out.push_str("double"),
 		}
 	}
 
@@ -28,6 +32,8 @@ impl Kind {
 			Kind::Void => return None,
 			Kind::Str => "%s",
 			Kind::I64 => "%\" PRId64 \"",
+			Kind::Bool => "%d",
+			Kind::Float => "%g",
 		};
 		Some(out)
 	}
@@ -66,6 +72,24 @@ impl Func {
 		}
 		expr.push('"');
 		Self { body, expr, kind }
+	}
+
+	pub fn bool(value: bool) -> Self {
+		let expr = if value { format!("true") } else { format!("false") };
+		Self {
+			expr,
+			kind: Kind::Bool,
+			body: String::new(),
+		}
+	}
+
+	pub fn float(value: f64) -> Self {
+		let expr = value.to_string();
+		Self {
+			expr,
+			kind: Kind::Float,
+			body: String::new(),
+		}
 	}
 }
 
@@ -207,12 +231,15 @@ impl Code {
 				}
 				Func { expr, body, kind }
 			}
-			Expr::Bool(_) => todo!(),
+			Expr::Bool(v) => {
+				builder.include_system("stdbool.h");
+				Func::bool(v)
+			}
 			Expr::Int(v) => {
 				builder.include_system("inttypes.h");
 				Func::i64(v)
 			}
-			Expr::Float(_) => todo!(),
+			Expr::Float(v) => Func::float(v),
 			Expr::Str(v) => Func::str(v),
 			Expr::Print(args) => {
 				builder.include_system("stdio.h");
