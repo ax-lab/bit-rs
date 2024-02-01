@@ -121,6 +121,7 @@ pub struct Options {
 
 pub fn init_core() {
 	let lexer = Lexer::new();
+	let symbols = Symbols::get();
 
 	let sources = SOURCES.get();
 	sources.add_global_init(DefaultLexer(lexer));
@@ -132,7 +133,7 @@ pub fn init_core() {
 	let comment = COMMENT.get();
 	comment.add_eval(RemoveNode(Precedence::Comment));
 
-	let print = WORDS.get("print");
+	let print = WORDS.get(symbols.PRINT);
 	print.add_eval(ParsePrint);
 
 	let literal = LITERAL.get();
@@ -143,6 +144,9 @@ pub fn init_core() {
 
 	let float = FLOAT.get();
 	float.add_eval(ParseLiteral);
+
+	WORDS.get(symbols.TRUE).add_eval(ParseLiteral);
+	WORDS.get(symbols.FALSE).add_eval(ParseLiteral);
 }
 
 pub fn execute(input: &[Source], options: Options) -> Result<()> {

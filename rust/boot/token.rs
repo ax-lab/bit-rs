@@ -166,6 +166,7 @@ pub struct Symbols {
 	pub END_BRACKET: Symbol,
 	pub TRUE: Symbol,
 	pub FALSE: Symbol,
+	pub PRINT: Symbol,
 }
 
 impl Symbols {
@@ -183,6 +184,7 @@ impl Symbols {
 			END_BRACKET: "]".into(),
 			TRUE: "true".into(),
 			FALSE: "false".into(),
+			PRINT: "print".into(),
 		});
 		SYMBOLS.get()
 	}
