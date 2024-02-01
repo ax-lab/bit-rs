@@ -89,16 +89,17 @@ fn parse_int(span: &Span) -> Result<i64> {
 
 fn parse_float(span: &Span) -> Result<f64> {
 	let text = span.text();
-	let (int, dec) = if let Some(index) = text.find('.') {
+
+	let (int, exp) = if let Some(index) = text.find(|c| matches!(c, 'e' | 'E')) {
 		(&text[..index], &text[index + 1..])
 	} else {
 		(text, "")
 	};
 
-	let (int, exp) = if let Some(index) = int.find(|c| matches!(c, 'e' | 'E')) {
-		(&text[..index], &text[index + 1..])
+	let (int, dec) = if let Some(index) = int.find('.') {
+		(&int[..index], &int[index + 1..])
 	} else {
-		(text, "")
+		(int, "")
 	};
 
 	let mut num = String::new();
@@ -136,7 +137,7 @@ fn parse_float(span: &Span) -> Result<f64> {
 
 	let value = match num.parse::<f64>() {
 		Ok(value) => value,
-		Err(err) => raise!(@span => "invalid floating point literal ({err})"),
+		Err(err) => raise!(@span => "invalid floating point literal ({err} -- {num})"),
 	};
 
 	Ok(value)
